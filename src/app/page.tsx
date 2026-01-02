@@ -32,28 +32,19 @@ export default function Home() {
     return acc + (isNaN(price) ? 0 : price);
   }, 0);
 
-  // --- HELPER: DEEP IMAGE FINDER ---
+  // --- HELPER: ROBUST IMAGE FINDER ---
   const getImageUrl = (card: any) => {
     if (!card) return "";
 
-    // 1. Check Top-Level Keys
+    // 1. Check if the API gave us a direct link (Batch results often have this)
     if (card.image) return card.image;
     if (card.imageUrl) return card.imageUrl;
+    if (card.images && card.images.small) return card.images.small;
+    if (card.images && card.images.large) return card.images.large;
     
-    // 2. Check Standard 'images' Object
-    if (card.images) {
-        if (typeof card.images === 'string') return card.images;
-        if (card.images.small) return card.images.small;
-        if (card.images.large) return card.images.large;
-    }
-
-    // 3. Check inside 'details' (THE FIX)
-    if (card.details) {
-        if (card.details.image) return card.details.image;
-        if (card.details.imageUrl) return card.details.imageUrl;
-        if (card.details.url) return card.details.url;
-        // Check if details has nested images
-        if (card.details.images && card.details.images.small) return card.details.images.small;
+    // 2. FALLBACK: Construct URL from TCGPlayer ID (Search results need this)
+    if (card.tcgplayerId) {
+        return `https://product-images.tcgplayer.com/fit-in/438x438/${card.tcgplayerId}.jpg`;
     }
 
     return "";
@@ -70,12 +61,6 @@ export default function Home() {
       const res = await fetch(`/api/cards?q=${query}`);
       if (!res.ok) throw new Error("Search failed");
       const data = await res.json();
-      
-      // Keep logging just in case, but UI is clean
-      if (data.data && data.data.length > 0) {
-        console.log("🔎 Debug - First Result:", data.data[0]);
-      }
-      
       setResults(data.data || []);
     } catch (err) {
       setErrorMsg("Failed to fetch results");
@@ -90,7 +75,7 @@ export default function Home() {
       id: card.id,
       name: card.name,
       set: card.setName || "Unknown Set",
-      image: getImageUrl(card), // Use the new logic
+      image: getImageUrl(card), // <--- This will now generate the TCGPlayer URL
       grade: "Raw (Ungraded)",
       isFirstEdition: false,
       livePrice: "N/A",
@@ -199,20 +184,12 @@ export default function Home() {
       {/* --- HEADER --- */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          
-          {/* LEFT: LOGO */}
-          <h1 className="text-2xl font-bold text-blue-700 tracking-tight">
-            CFinder
-          </h1>
-
-          {/* RIGHT: TABS (Pill Style) */}
+          <h1 className="text-2xl font-bold text-blue-700 tracking-tight">CFinder</h1>
           <div className="flex items-center gap-3">
             <button
               onClick={() => setActiveTab('search')}
               className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-2 ${
-                activeTab === 'search' 
-                  ? 'bg-blue-100 text-blue-700' 
-                  : 'text-gray-500 hover:bg-gray-100'
+                activeTab === 'search' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'
               }`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -220,13 +197,10 @@ export default function Home() {
               </svg>
               Search
             </button>
-
             <button
               onClick={() => setActiveTab('list')}
               className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-2 ${
-                activeTab === 'list' 
-                  ? 'bg-blue-100 text-blue-700' 
-                  : 'text-gray-500 hover:bg-gray-100'
+                activeTab === 'list' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'
               }`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -241,7 +215,6 @@ export default function Home() {
       {/* --- MAIN CONTENT --- */}
       <main className="max-w-7xl mx-auto p-6">
         
-        {/* ERROR MESSAGE */}
         {errorMsg && (
           <div className="mb-6 p-4 bg-red-50 text-red-700 rounded-lg border border-red-100 text-center">
             {errorMsg}
@@ -260,11 +233,7 @@ export default function Home() {
                   placeholder="Search for a card..."
                   className="flex-1 p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                 />
-                <button 
-                  type="submit" 
-                  disabled={isLoading}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-medium transition disabled:opacity-50"
-                >
+                <button type="submit" disabled={isLoading} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-medium transition disabled:opacity-50">
                   {isLoading ? 'Searching...' : 'Search'}
                 </button>
               </form>
@@ -310,7 +279,6 @@ export default function Home() {
             {/* TOOLBAR */}
             <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-gray-50">
               <h2 className="text-xl font-bold text-gray-800">Tracked Cards</h2>
-              
               <div className="flex gap-2">
                  <input 
                   type="file" 
@@ -372,7 +340,6 @@ export default function Home() {
                         {/* NAME & SET */}
                         <td className="p-4">
                           <p className="font-bold text-gray-900">{item.name}</p>
-                          {/* HIDE SET IF UNKNOWN */}
                           {item.set && item.set !== "Unknown Set" && (
                             <p className="text-xs text-gray-500">{item.set}</p>
                           )}
