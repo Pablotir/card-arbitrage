@@ -11,7 +11,6 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Hidden input ref for Import
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // --- LOAD DATA ---
@@ -33,28 +32,28 @@ export default function Home() {
     return acc + (isNaN(price) ? 0 : price);
   }, 0);
 
-  // --- HELPER: AGGRESSIVE IMAGE FINDER ---
+  // --- HELPER: DEEP IMAGE FINDER ---
   const getImageUrl = (card: any) => {
     if (!card) return "";
-    
-    // Check every common variation in the TCG world
+
+    // 1. Check Top-Level Keys
     if (card.image) return card.image;
     if (card.imageUrl) return card.imageUrl;
-    if (card.img) return card.img;
-    if (card.url) return card.url;
-    if (card.thumbnail) return card.thumbnail;
     
-    // Nested objects
+    // 2. Check Standard 'images' Object
     if (card.images) {
         if (typeof card.images === 'string') return card.images;
         if (card.images.small) return card.images.small;
         if (card.images.large) return card.images.large;
-        if (card.images.url) return card.images.url;
     }
-    
-    if (card.media) {
-        if (card.media.url) return card.media.url;
-        if (card.media.image) return card.media.image;
+
+    // 3. Check inside 'details' (THE FIX)
+    if (card.details) {
+        if (card.details.image) return card.details.image;
+        if (card.details.imageUrl) return card.details.imageUrl;
+        if (card.details.url) return card.details.url;
+        // Check if details has nested images
+        if (card.details.images && card.details.images.small) return card.details.images.small;
     }
 
     return "";
@@ -71,6 +70,12 @@ export default function Home() {
       const res = await fetch(`/api/cards?q=${query}`);
       if (!res.ok) throw new Error("Search failed");
       const data = await res.json();
+      
+      // Keep logging just in case, but UI is clean
+      if (data.data && data.data.length > 0) {
+        console.log("🔎 Debug - First Result:", data.data[0]);
+      }
+      
       setResults(data.data || []);
     } catch (err) {
       setErrorMsg("Failed to fetch results");
@@ -85,7 +90,7 @@ export default function Home() {
       id: card.id,
       name: card.name,
       set: card.setName || "Unknown Set",
-      image: getImageUrl(card), // Uses the helper
+      image: getImageUrl(card), // Use the new logic
       grade: "Raw (Ungraded)",
       isFirstEdition: false,
       livePrice: "N/A",
@@ -275,9 +280,8 @@ export default function Home() {
                       {validImage ? (
                         <img src={validImage} alt={card.name} className="w-20 h-28 object-contain" />
                       ) : (
-                         <div className="w-20 h-28 bg-gray-100 p-2 overflow-hidden text-[10px] text-gray-500 font-mono break-all border border-red-200 rounded">
-                           {/* DEBUGGER: SHOW KEYS */}
-                           KEYS: {Object.keys(card).filter(k => k !== 'variants').join(', ')}
+                         <div className="w-20 h-28 bg-gray-100 flex items-center justify-center text-gray-400 text-xs text-center p-2 rounded">
+                           No Img
                          </div>
                       )}
                       <div className="flex-1 flex flex-col justify-center">
@@ -359,7 +363,7 @@ export default function Home() {
                           {item.image ? (
                             <img src={item.image} alt={item.name} className="w-12 h-16 object-contain rounded-sm border" />
                           ) : (
-                            <div className="w-12 h-16 bg-gray-100 rounded-sm flex items-center justify-center text-gray-400 text-[10px] text-center p-1">
+                            <div className="w-12 h-16 bg-gray-100 rounded-sm flex items-center justify-center text-gray-400 text-xs text-center p-1">
                                 No Img
                             </div>
                           )}
