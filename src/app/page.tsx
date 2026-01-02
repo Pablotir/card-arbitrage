@@ -33,14 +33,30 @@ export default function Home() {
     return acc + (isNaN(price) ? 0 : price);
   }, 0);
 
-  // --- HELPER: SIMPLE IMAGE FINDER ---
+  // --- HELPER: AGGRESSIVE IMAGE FINDER ---
   const getImageUrl = (card: any) => {
     if (!card) return "";
-    // Priority: 'image' is the most common key for v1 APIs
+    
+    // Check every common variation in the TCG world
     if (card.image) return card.image;
     if (card.imageUrl) return card.imageUrl;
-    if (card.images && card.images.small) return card.images.small;
-    if (card.images && card.images.large) return card.images.large;
+    if (card.img) return card.img;
+    if (card.url) return card.url;
+    if (card.thumbnail) return card.thumbnail;
+    
+    // Nested objects
+    if (card.images) {
+        if (typeof card.images === 'string') return card.images;
+        if (card.images.small) return card.images.small;
+        if (card.images.large) return card.images.large;
+        if (card.images.url) return card.images.url;
+    }
+    
+    if (card.media) {
+        if (card.media.url) return card.media.url;
+        if (card.media.image) return card.media.image;
+    }
+
     return "";
   };
 
@@ -55,13 +71,6 @@ export default function Home() {
       const res = await fetch(`/api/cards?q=${query}`);
       if (!res.ok) throw new Error("Search failed");
       const data = await res.json();
-      
-      // --- DEBUG: LOG KEYS TO CONSOLE ---
-      if (data.data && data.data.length > 0) {
-        console.log("🔎 API Response Item:", data.data[0]);
-        console.log("🔎 Available Keys:", Object.keys(data.data[0]));
-      }
-      
       setResults(data.data || []);
     } catch (err) {
       setErrorMsg("Failed to fetch results");
@@ -76,7 +85,7 @@ export default function Home() {
       id: card.id,
       name: card.name,
       set: card.setName || "Unknown Set",
-      image: getImageUrl(card), // Uses the simplified helper
+      image: getImageUrl(card), // Uses the helper
       grade: "Raw (Ungraded)",
       isFirstEdition: false,
       livePrice: "N/A",
@@ -266,8 +275,9 @@ export default function Home() {
                       {validImage ? (
                         <img src={validImage} alt={card.name} className="w-20 h-28 object-contain" />
                       ) : (
-                         <div className="w-20 h-28 bg-gray-100 flex items-center justify-center text-gray-400 text-xs text-center p-2 rounded">
-                           📷 No Img
+                         <div className="w-20 h-28 bg-gray-100 p-2 overflow-hidden text-[10px] text-gray-500 font-mono break-all border border-red-200 rounded">
+                           {/* DEBUGGER: SHOW KEYS */}
+                           KEYS: {Object.keys(card).filter(k => k !== 'variants').join(', ')}
                          </div>
                       )}
                       <div className="flex-1 flex flex-col justify-center">
@@ -349,7 +359,9 @@ export default function Home() {
                           {item.image ? (
                             <img src={item.image} alt={item.name} className="w-12 h-16 object-contain rounded-sm border" />
                           ) : (
-                            <div className="w-12 h-16 bg-gray-100 rounded-sm flex items-center justify-center text-gray-400 text-xs text-center p-1">📷</div>
+                            <div className="w-12 h-16 bg-gray-100 rounded-sm flex items-center justify-center text-gray-400 text-[10px] text-center p-1">
+                                No Img
+                            </div>
                           )}
                         </td>
 
