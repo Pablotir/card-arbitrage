@@ -36,46 +36,61 @@ export async function searchEbay(cardName: string, set: string, grade: string, i
   }
 
   // CLEANUP: Convert "crown-zenith-pokemon" -> "crown zenith"
-  const cleanSet = set.replace(/-/g, ' ').replace('pokemon', '').trim();
+  let cleanSet = set ? set.replace(/-/g, ' ').replace('pokemon', '').trim() : "";
+  
+  // If set name includes "promo", substitute with just "promo"
+  if (cleanSet && cleanSet.toLowerCase().includes("promo")) {
+    cleanSet = "promo";
+  }
   
   // Exclusions to ensure we don't get slabs when looking for raw
   const exclusions = "-PSA -CGC -BGS -graded -slab";
 
   // BUILD QUERY LIST: We will try these in order
-  let queriesToTry: string[] = [];
+  let queriesToTry: { query: string, isLightlyPlayed: boolean }[] = [];
 
   if (grade === "Raw (Ungraded)") {
-    // --- ATTEMPT 1: Specific (Name + Set + "Near Mint") ---
-    let q1 = `${cardName} ${cleanSet} Near Mint`;
+    // Build base query with card name
+    const baseQuery = cleanSet ? `${cardName} ${cleanSet}` : cardName;
+
+    // --- ATTEMPT 1: card name (+ set if available), "Near Mint", exclusions ---
+    let q1 = `${baseQuery} Near Mint`;
     if (isFirstEd) q1 += " 1st edition";
     q1 += ` ${exclusions}`;
-    queriesToTry.push(q1);
+    queriesToTry.push({ query: q1, isLightlyPlayed: false });
 
-    // --- ATTEMPT 2: Broad Fallback (Name + "Near Mint" [+ "promo" if needed]) ---
-    let q2 = `${cardName} Near Mint`;
-    
-    // Logic: If the set name implies it's a promo, force "promo" into the search
-    // to avoid finding non-promo versions of the card.
-    if (set.toLowerCase().includes("promo") || cleanSet.toLowerCase().includes("promo")) {
-        q2 += " promo";
-    }
-    
+    // --- ATTEMPT 2: card name (+ set if available), "NM", exclusions ---
+    let q2 = `${baseQuery} NM`;
     if (isFirstEd) q2 += " 1st edition";
     q2 += ` ${exclusions}`;
-    queriesToTry.push(q2);
+    queriesToTry.push({ query: q2, isLightlyPlayed: false });
+
+    // --- ATTEMPT 3: card name (+ set if available), "Lightly Played", exclusions ---
+    let q3 = `${baseQuery} Lightly Played`;
+    if (isFirstEd) q3 += " 1st edition";
+    q3 += ` ${exclusions}`;
+    queriesToTry.push({ query: q3, isLightlyPlayed: true });
+
+    // --- ATTEMPT 4: card name (+ set if available), "LP", exclusions ---
+    let q4 = `${baseQuery} LP`;
+    if (isFirstEd) q4 += " 1st edition";
+    q4 += ` ${exclusions}`;
+    queriesToTry.push({ query: q4, isLightlyPlayed: true });
 
   } else {
-    // Graded cards usually need the set name to be accurate
-    let q = `${cardName} ${cleanSet} ${grade}`;
+    // Graded cards: Include set name if available
+    let q = `${cardName}`;
+    if (cleanSet) q += ` ${cleanSet}`;
+    q += ` ${grade}`;
     if (isFirstEd) q += " 1st edition";
-    queriesToTry.push(q);
+    queriesToTry.push({ query: q, isLightlyPlayed: false });
   }
 
   // EXECUTE SEARCH LOOP
-  for (const query of queriesToTry) {
-    console.log(`🔎 eBay Searching: [${query}]`); 
+  for (const attempt of queriesToTry) {
+    console.log(`🔎 eBay Searching: [${attempt.query}]`); 
 
-    const url = `${EBAY_SEARCH_URL}?q=${encodeURIComponent(query)}&limit=3&sort=price&filter=priceCurrency:USD,buyingOptions:{FIXED_PRICE}`; 
+    const url = `${EBAY_SEARCH_URL}?q=${encodeURIComponent(attempt.query)}&limit=3&sort=price&filter=priceCurrency:USD,buyingOptions:{FIXED_PRICE}`; 
 
     try {
       const res = await fetch(url, {
@@ -87,17 +102,19 @@ export async function searchEbay(cardName: string, set: string, grade: string, i
 
       const data = await res.json();
       
-      // If we found something, RETURN IT immediately (don't run Attempt 2)
+      // If we found something, RETURN IT immediately
       if (data.itemSummaries && data.itemSummaries.length > 0) {
         const cheapest = data.itemSummaries[0];
-        console.log(`✅ Found: $${cheapest.price.value} (${cheapest.title})`); 
+        const warningPrefix = attempt.isLightlyPlayed ? "⚠️ LIGHTLY PLAYED - " : "";
+        console.log(`✅ ${warningPrefix}Found: $${cheapest.price.value} (${cheapest.title})`); 
         return {
           price: cheapest.price.value,
           link: cheapest.itemWebUrl,
-          title: cheapest.title
+          title: cheapest.title,
+          isLightlyPlayed: attempt.isLightlyPlayed
         };
       } else {
-        console.log(`⚠️ No results for: ${query}`);
+        console.log(`⚠️ No results for: ${attempt.query}`);
         // Loop continues to next attempt...
       }
     } catch (error) {
@@ -105,6 +122,7 @@ export async function searchEbay(cardName: string, set: string, grade: string, i
     }
   }
 
-  // If loop finishes with no results
+  // If loop finishes with no results, fallback to TCGPlayer
+  console.log("❌ No eBay results found - falling back to TCGPlayer");
   return { price: null, link: null };
 }

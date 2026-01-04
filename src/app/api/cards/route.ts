@@ -10,106 +10,139 @@ export async function POST(request: Request) {
 
     let tcgData: any = { data: [] }; 
 
-    // 1. Try Batch Fetch
+    // 1. Batch Fetch
     try {
-      const batchPayload = { items: cards.map((c: any) => ({ cardId: c.id })) };
-      const tcgResponse = await fetch('https://api.justtcg.com/v1/cards/batch', {
-        method: 'POST',
-        headers: { 'x-api-key': API_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify(batchPayload),
-      });
-      if (tcgResponse.ok) tcgData = await tcgResponse.json();
+      const validIds = cards.filter((c: any) => c.id && String(c.id).length > 4);
+      if (validIds.length > 0) {
+          const batchPayload = { items: validIds.map((c: any) => ({ cardId: c.id })) };
+          const tcgResponse = await fetch('https://api.justtcg.com/v1/cards/batch', {
+            method: 'POST',
+            headers: { 'x-api-key': API_KEY, 'Content-Type': 'application/json' },
+            body: JSON.stringify(batchPayload),
+          });
+          if (tcgResponse.ok) tcgData = await tcgResponse.json();
+      }
     } catch (e) { console.error("Batch Error:", e); }
 
     // 2. Process Cards
     const results = await Promise.all(cards.map(async (userCard: any) => {
       let tcgPrice = Infinity;
-      let tcgLink = "";  // <--- Changed: Separate variable
-
+      let tcgLink = "";
       let ebayPrice = Infinity;
-      let ebayLink = ""; // <--- Changed: Separate variable
-
+      let ebayLink = "";
       let bestLink = "";
       let bestSource = "Checking...";
 
-      // A. JustTCG Lookup (Fail-Safe)
+      // --- A. JustTCG Lookup ---
       if (userCard.grade === "Raw (Ungraded)") {
         let match = tcgData.data?.find((d: any) => String(d.id) === String(userCard.id));
 
         if (!match) {
             try {
-                // STRATEGY: Search by Name (Our working fail-safe)
-                const cleanQuery = encodeURIComponent(userCard.name);
-                const searchUrl = `https://api.justtcg.com/v1/cards?q=${cleanQuery}&game=pokemon&limit=5`;
-                const searchRes = await fetch(searchUrl, { headers: { 'x-api-key': API_KEY } });
-                
-                if (searchRes.ok) {
-                    const searchData = await searchRes.json();
-                    const candidates = searchData.data || [];
-                    if (candidates.length > 0) {
-                        // Priority: ID Match -> Name Match -> First Result
-                        match = candidates.find((d: any) => d.id === userCard.id);
-                        if (!match) {
-                             const targetName = userCard.name.toLowerCase();
-                             match = candidates.find((d: any) => d.name.toLowerCase().includes(targetName));
-                        }
-                        if (!match && candidates[0].name.toLowerCase().includes(userCard.name.split(" ")[0].toLowerCase())) {
-                             match = candidates[0];
-                        }
+                if (userCard.id && String(userCard.id).length > 4) {
+                    const directRes = await fetch(`https://api.justtcg.com/v1/cards/${userCard.id}`, { 
+                        headers: { 'x-api-key': API_KEY } 
+                    });
+                    if (directRes.ok) {
+                        const directData = await directRes.json();
+                        match = directData.data || directData; 
                     }
-                } 
-            } catch (err) { console.error("Fail-Safe Network Error"); }
+                }
+                if (!match) {
+                    const cleanQuery = encodeURIComponent(userCard.name);
+                    const searchRes = await fetch(`https://api.justtcg.com/v1/cards?q=${cleanQuery}&game=pokemon&limit=20`, { headers: { 'x-api-key': API_KEY } });
+                    if (searchRes.ok) {
+                        const searchData = await searchRes.json();
+                        const candidates = searchData.data || [];
+                        if (candidates.length > 0) {
+                            if (userCard.set) {
+                                const userSet = userCard.set.toLowerCase();
+                                match = candidates.find((d: any) => {
+                                    if (!d.setName) return false;
+                                    const apiSet = d.setName.toLowerCase();
+                                    return d.name.toLowerCase().includes(userCard.name.toLowerCase()) &&
+                                           (userSet.includes(apiSet) || apiSet.includes(userSet));
+                                });
+                            }
+                            if (!match) match = candidates.find((d: any) => d.name.toLowerCase() === userCard.name.toLowerCase());
+                        }
+                    } 
+                }
+            } catch (err) { console.error(`Fail-Safe Error`); }
         }
 
-        // Pricing Logic
         if (match && match.variants) {
-            // Priority: NM -> LP -> MP -> Cheapest
-            let variant = match.variants.find((v: any) => v.condition && v.condition.includes("Near Mint"));
-            if (!variant) variant = match.variants.find((v: any) => v.condition && v.condition.includes("Lightly Played"));
-            if (!variant) variant = match.variants.find((v: any) => v.condition && v.condition.includes("Moderately Played"));
-            
-            if (!variant && match.variants.length > 0) {
-                 const playable = match.variants.filter((v:any) => !v.condition.includes("Damaged"));
-                 const pool = playable.length > 0 ? playable : match.variants;
-                 variant = pool.sort((a: any, b: any) => parseFloat(a.price) - parseFloat(b.price))[0];
-            }
+            const getPriorityPrice = (v: any) => {
+                const listing = parseFloat(v.lowPrice) || parseFloat(v.listingPrice) || parseFloat(v.directLowPrice);
+                if (listing > 0) return listing;
+                return parseFloat(v.price) || Infinity;
+            };
 
-            if (variant && variant.price) {
-                tcgPrice = parseFloat(variant.price);
-                tcgLink = `https://www.tcgplayer.com/product/${match.tcgplayerId || ""}`; // Store specifically in tcgLink
+            // STRICT FIX: Only filter for "Near Mint"
+            // We removed "Lightly Played" to prevent the $38.68 LP price from appearing
+            const validVariants = match.variants.filter((v: any) => 
+                v.condition && v.condition.toLowerCase().includes("near mint")
+            );
+            
+            validVariants.sort((a: any, b: any) => getPriorityPrice(a) - getPriorityPrice(b));
+            
+            // If we have a NM variant, pick the cheapest one.
+            let chosenVariant = validVariants.length > 0 ? validVariants[0] : null;
+
+            // Note: We REMOVED the fallback that grabs "any non-damaged card".
+            // If TCGPlayer has no Near Mint copies, it will return Infinity,
+            // which correctly forces the app to look at eBay instead.
+
+            if (chosenVariant) {
+                tcgPrice = getPriorityPrice(chosenVariant);
+                const correctId = match.tcgplayerId || match.id;
+                tcgLink = `https://www.tcgplayer.com/product/${correctId}`; 
             }
         }
       }
 
-      // B. eBay Lookup
+      // --- B. eBay Lookup ---
       try {
-        const ebayResult = await searchEbay(userCard.name, userCard.set, userCard.grade, userCard.isFirstEdition);
+        // STRICT FIX: Ensure Set Name is strictly passed
+        // We trim the string to avoid any whitespace issues that might confuse the search
+        const searchSet = (userCard.set && !userCard.set.toLowerCase().includes("unknown")) 
+            ? userCard.set.trim() 
+            : "";
+        
+        console.log(`🔍 Card: ${userCard.name} | Set from payload: "${userCard.set}" | Clean Set: "${searchSet}"`);
+            
+        const ebayResult = await searchEbay(userCard.name, searchSet, userCard.grade, userCard.isFirstEdition);
+        
         if (ebayResult && ebayResult.price) {
             ebayPrice = parseFloat(String(ebayResult.price));
-            ebayLink = ebayResult.link || ""; // <--- Store specifically in ebayLink
+            ebayLink = ebayResult.link || "";
+            console.log(`✅ eBay Result: $${ebayPrice} | Link: ${ebayLink}`);
         }
       } catch (e) { console.error("eBay error"); }
 
-      // C. Compare (The Fix)
-      let finalPrice = "N/A";
-
-      if (ebayPrice < tcgPrice && ebayPrice !== Infinity) {
-        finalPrice = ebayPrice.toFixed(2);
-        bestSource = "eBay";
-        bestLink = ebayLink; // <--- Correctly assign eBay Link
-      } else if (tcgPrice !== Infinity) {
-        finalPrice = tcgPrice.toFixed(2);
+      // --- C. Source Decision ---
+      // Decide Best Source (TCGPlayer vs eBay)
+      if (tcgPrice !== Infinity) {
         bestSource = "TCGPlayer";
-        bestLink = tcgLink; // <--- Correctly assign TCG Link
+      } else if (ebayPrice !== Infinity) {
+        bestSource = "eBay";
       } else {
-        bestSource = "Not Found";
+        bestSource = "";
+      }
+      
+      // Override: If eBay is cheaper than TCGPlayer, use eBay
+      if (ebayPrice < tcgPrice && ebayPrice !== Infinity) {
+          bestSource = "eBay";
       }
 
       return {
         id: userCard.id,
-        livePrice: finalPrice,
         bestSource: bestSource,
-        bestLink: bestLink
+        // Send BOTH prices back
+        tcgPrice: tcgPrice === Infinity ? null : tcgPrice.toFixed(2),
+        tcgLink: tcgLink,
+        ebayPrice: ebayPrice === Infinity ? null : ebayPrice.toFixed(2),
+        ebayLink: ebayLink
       };
     }));
 
@@ -121,15 +154,12 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const q = searchParams.get('q');
-    const API_KEY = process.env.JUSTTCG_API_KEY;
-    if (!API_KEY) return NextResponse.json({ error: "Missing API Key" }, { status: 500 });
-    const response = await fetch(`https://api.justtcg.com/v1/cards?game=pokemon&limit=20&q=${q}`, { headers: { 'x-api-key': API_KEY } });
-    const data = await response.json();
-    return NextResponse.json(data);
-  } catch (error) {
-    return NextResponse.json({ error: 'Internal Server Error', details: String(error) }, { status: 500 });
-  }
+    try {
+        const { searchParams } = new URL(request.url);
+        const q = searchParams.get('q');
+        const API_KEY = process.env.JUSTTCG_API_KEY;
+        const response = await fetch(`https://api.justtcg.com/v1/cards?game=pokemon&limit=20&q=${q}`, { headers: { 'x-api-key': API_KEY || "" } });
+        const data = await response.json();
+        return NextResponse.json(data);
+    } catch (error) { return NextResponse.json({ error: 'Server Error' }, { status: 500 }); }
 }
