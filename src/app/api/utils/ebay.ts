@@ -44,7 +44,7 @@ export async function searchEbay(cardName: string, set: string, grade: string, i
   }
   
   // Exclusions to ensure we don't get slabs when looking for raw
-  const exclusions = "-PSA -CGC -BGS -graded -slab";
+  const exclusions = "-PSA -CGC -BGS -graded -slab -keychain";
 
   // BUILD QUERY LIST: We will try these in order
   let queriesToTry: { query: string, isLightlyPlayed: boolean }[] = [];

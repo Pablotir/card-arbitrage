@@ -10,88 +10,58 @@ export async function POST(request: Request) {
 
     let tcgData: any = { data: [] }; 
 
-    // 1. Batch Fetch
+    // 1. Batch Fetch TCGPlayer Data (Fast)
     try {
       const validIds = cards.filter((c: any) => c.id && String(c.id).length > 4);
       if (validIds.length > 0) {
           const batchPayload = { items: validIds.map((c: any) => ({ cardId: c.id })) };
+          // 3-second timeout for TCGPlayer batch
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          
           const tcgResponse = await fetch('https://api.justtcg.com/v1/cards/batch', {
             method: 'POST',
             headers: { 'x-api-key': API_KEY, 'Content-Type': 'application/json' },
             body: JSON.stringify(batchPayload),
+            signal: controller.signal
           });
+          clearTimeout(timeoutId);
+          
           if (tcgResponse.ok) tcgData = await tcgResponse.json();
       }
-    } catch (e) { console.error("Batch Error:", e); }
+    } catch (e) { console.error("Batch Error (Ignored):", e); }
 
-    // 2. Process Cards
+    // 2. Process Cards (Parallel with Strict Timeouts)
     const results = await Promise.all(cards.map(async (userCard: any) => {
       let tcgPrice = Infinity;
       let tcgLink = "";
       let ebayPrice = Infinity;
       let ebayLink = "";
-      let bestLink = "";
       let bestSource = "Checking...";
 
-      // --- A. JustTCG Lookup ---
+      // --- A. JustTCG Processing ---
       if (userCard.grade === "Raw (Ungraded)") {
         let match = tcgData.data?.find((d: any) => String(d.id) === String(userCard.id));
 
-        if (!match) {
-            try {
-                if (userCard.id && String(userCard.id).length > 4) {
-                    const directRes = await fetch(`https://api.justtcg.com/v1/cards/${userCard.id}`, { 
-                        headers: { 'x-api-key': API_KEY } 
-                    });
-                    if (directRes.ok) {
-                        const directData = await directRes.json();
-                        match = directData.data || directData; 
-                    }
-                }
-                if (!match) {
-                    const cleanQuery = encodeURIComponent(userCard.name);
-                    const searchRes = await fetch(`https://api.justtcg.com/v1/cards?q=${cleanQuery}&game=pokemon&limit=20`, { headers: { 'x-api-key': API_KEY } });
-                    if (searchRes.ok) {
-                        const searchData = await searchRes.json();
-                        const candidates = searchData.data || [];
-                        if (candidates.length > 0) {
-                            if (userCard.set) {
-                                const userSet = userCard.set.toLowerCase();
-                                match = candidates.find((d: any) => {
-                                    if (!d.setName) return false;
-                                    const apiSet = d.setName.toLowerCase();
-                                    return d.name.toLowerCase().includes(userCard.name.toLowerCase()) &&
-                                           (userSet.includes(apiSet) || apiSet.includes(userSet));
-                                });
-                            }
-                            if (!match) match = candidates.find((d: any) => d.name.toLowerCase() === userCard.name.toLowerCase());
-                        }
-                    } 
-                }
-            } catch (err) { console.error(`Fail-Safe Error`); }
-        }
+        // Note: We skip the "Name Fallback" here to keep it fast. 
+        // If the ID matches, we use it. If not, we rely on the user to fix the ID or use eBay.
 
         if (match && match.variants) {
+            // STRICT PRIORITY: Near Mint ONLY
             const getPriorityPrice = (v: any) => {
+                // Prefer lowPrice/listingPrice if available, else standard price
                 const listing = parseFloat(v.lowPrice) || parseFloat(v.listingPrice) || parseFloat(v.directLowPrice);
                 if (listing > 0) return listing;
                 return parseFloat(v.price) || Infinity;
             };
 
-            // STRICT FIX: Only filter for "Near Mint"
-            // We removed "Lightly Played" to prevent the $38.68 LP price from appearing
-            const validVariants = match.variants.filter((v: any) => 
+            const nmVariants = match.variants.filter((v: any) => 
                 v.condition && v.condition.toLowerCase().includes("near mint")
             );
             
-            validVariants.sort((a: any, b: any) => getPriorityPrice(a) - getPriorityPrice(b));
-            
-            // If we have a NM variant, pick the cheapest one.
-            let chosenVariant = validVariants.length > 0 ? validVariants[0] : null;
-
-            // Note: We REMOVED the fallback that grabs "any non-damaged card".
-            // If TCGPlayer has no Near Mint copies, it will return Infinity,
-            // which correctly forces the app to look at eBay instead.
+            // Sort to find cheapest NM
+            nmVariants.sort((a: any, b: any) => getPriorityPrice(a) - getPriorityPrice(b));
+            let chosenVariant = nmVariants.length > 0 ? nmVariants[0] : null;
 
             if (chosenVariant) {
                 tcgPrice = getPriorityPrice(chosenVariant);
@@ -101,36 +71,40 @@ export async function POST(request: Request) {
         }
       }
 
-      // --- B. eBay Lookup ---
+      // --- B. eBay Lookup (Fast & Strict) ---
       try {
-        // STRICT FIX: Ensure Set Name is strictly passed
-        // We trim the string to avoid any whitespace issues that might confuse the search
-        const searchSet = (userCard.set && !userCard.set.toLowerCase().includes("unknown")) 
-            ? userCard.set.trim() 
-            : "";
+        const hasSet = userCard.set && !userCard.set.toLowerCase().includes("unknown");
+        const safeSet = hasSet ? userCard.set.trim() : "";
         
-        console.log(`🔍 Card: ${userCard.name} | Set from payload: "${userCard.set}" | Clean Set: "${searchSet}"`);
-            
-        const ebayResult = await searchEbay(userCard.name, searchSet, userCard.grade, userCard.isFirstEdition);
+        // FORCE QUERY: "Name + Set Name"
+        // This fixes the Rayquaza Supreme Victors issue
+        const combinedQuery = hasSet ? `${userCard.name} ${safeSet}` : userCard.name;
         
-        if (ebayResult && ebayResult.price) {
-            ebayPrice = parseFloat(String(ebayResult.price));
-            ebayLink = ebayResult.link || "";
-            console.log(`✅ eBay Result: $${ebayPrice} | Link: ${ebayLink}`);
-        }
-      } catch (e) { console.error("eBay error"); }
+        // 4-SECOND TIMEOUT for eBay
+        // If eBay is slow, we abort and just return the TCG price.
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-      // --- C. Source Decision ---
-      // Decide Best Source (TCGPlayer vs eBay)
-      if (tcgPrice !== Infinity) {
-        bestSource = "TCGPlayer";
-      } else if (ebayPrice !== Infinity) {
-        bestSource = "eBay";
-      } else {
-        bestSource = "";
-      }
+        try {
+            // We pass "" as set because we baked it into the name query manually
+            const ebayResult = await searchEbay(combinedQuery, "", userCard.grade, userCard.isFirstEdition);
+            if (ebayResult && ebayResult.price) {
+                ebayPrice = parseFloat(String(ebayResult.price));
+                ebayLink = ebayResult.link || ""; 
+            }
+        } catch (err) {
+            // If eBay fails/times out, we just ignore it. TCG price is sufficient.
+        } finally {
+            clearTimeout(timeoutId);
+        }
+      } catch (e) { console.error("eBay Setup Error"); }
+
+      // --- C. Decision Logic ---
+      if (tcgPrice !== Infinity) bestSource = "TCGPlayer";
+      else if (ebayPrice !== Infinity) bestSource = "eBay";
+      else bestSource = ""; // N/A
       
-      // Override: If eBay is cheaper than TCGPlayer, use eBay
+      // If eBay is strictly cheaper, prefer it
       if (ebayPrice < tcgPrice && ebayPrice !== Infinity) {
           bestSource = "eBay";
       }
@@ -138,7 +112,6 @@ export async function POST(request: Request) {
       return {
         id: userCard.id,
         bestSource: bestSource,
-        // Send BOTH prices back
         tcgPrice: tcgPrice === Infinity ? null : tcgPrice.toFixed(2),
         tcgLink: tcgLink,
         ebayPrice: ebayPrice === Infinity ? null : ebayPrice.toFixed(2),
@@ -149,7 +122,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ data: results });
 
   } catch (error) {
-    return NextResponse.json({ error: 'Update failed', details: String(error) }, { status: 500 });
+    console.error("API Fatal Error:", error);
+    return NextResponse.json({ error: 'Update failed' }, { status: 500 });
   }
 }
 

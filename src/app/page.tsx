@@ -12,23 +12,79 @@ export default function Home() {
   const [myCollection, setMyCollection] = useState<any[]>([]); 
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  
+  // AUTH STATE
+  const [user, setUser] = useState<any>(null);
   const [userId, setUserId] = useState<string>('');
+  const [isMigrating, setIsMigrating] = useState(false);
 
   // MODAL STATE
   const [purchaseModal, setPurchaseModal] = useState<{ isOpen: boolean, card: any | null, price: string }>({ isOpen: false, card: null, price: '' });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- INIT & UTILS ---
+  // --- INIT & AUTH ---
   const generateUUID = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16); });
 
   useEffect(() => {
-    let storedUid = localStorage.getItem('cfinder_user_id');
-    if (!storedUid) { storedUid = generateUUID(); localStorage.setItem('cfinder_user_id', storedUid); }
-    setUserId(storedUid);
-    if (storedUid) fetchCards(storedUid);
+    // 1. Check for active Supabase Session
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        // LOGGED IN: Use real Supabase ID
+        setUser(session.user);
+        setUserId(session.user.id);
+        fetchCards(session.user.id);
+      } else {
+        // GUEST: Use LocalStorage ID
+        let storedUid = localStorage.getItem('cfinder_user_id');
+        if (!storedUid) { 
+            storedUid = generateUUID(); 
+            localStorage.setItem('cfinder_user_id', storedUid); 
+        }
+        setUserId(storedUid);
+        fetchCards(storedUid);
+      }
+
+      // Listen for auth changes (Login/Logout)
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (session?.user) {
+            setUser(session.user);
+            setUserId(session.user.id);
+            fetchCards(session.user.id);
+            // Optional: Auto-migrate guest cards to user here if you want
+        } else {
+            setUser(null);
+            const guestId = localStorage.getItem('cfinder_user_id') || generateUUID();
+            setUserId(guestId);
+            setMyList([]); 
+            setMyCollection([]);
+            fetchCards(guestId);
+        }
+      });
+      return () => subscription.unsubscribe();
+    };
+
+    checkUser();
   }, []);
 
+  // --- LOGIN HANDLERS ---
+  const handleLogin = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}`,
+      },
+    });
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.reload(); // Reload to switch back to guest mode cleanly
+  };
+
+  // --- DATA FETCHING ---
   const fetchCards = async (uid: string) => {
     if (!supabase) return;
     const { data, error } = await supabase.from('cards').select('*').eq('user_id', uid);
@@ -79,7 +135,7 @@ export default function Home() {
     if (!error) fetchCards(userId); 
   };
 
-  // --- IMPORT / EXPORT HANDLERS (Restored) ---
+  // --- IMPORT / EXPORT HANDLERS ---
   const handleExport = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(myList, null, 2));
     const a = document.createElement('a');
@@ -188,6 +244,11 @@ export default function Home() {
             }
         }
 
+        // Store TCG price if not winner, for dual display
+        if (updated.tcgPrice && updated.bestSource === 'eBay') {
+             updatePayload.tcg_price = updated.tcgPrice;
+        }
+
         await supabase.from('cards').update(updatePayload).eq('card_id', updated.id).eq('user_id', userId);
       }
       fetchCards(userId);
@@ -206,11 +267,28 @@ export default function Home() {
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-blue-700 tracking-tight">CFinder</h1>
-          <div className="flex items-center gap-3">
-            <button onClick={() => setActiveTab('search')} className={`px-4 py-2 rounded-full text-sm font-medium transition ${activeTab === 'search' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}>Search</button>
-            <button onClick={() => setActiveTab('list')} className={`px-4 py-2 rounded-full text-sm font-medium transition ${activeTab === 'list' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}>Your List ({myList.length})</button>
-            <button onClick={() => setActiveTab('collection')} className={`px-4 py-2 rounded-full text-sm font-medium transition ${activeTab === 'collection' ? 'bg-green-100 text-green-700' : 'text-gray-500 hover:bg-gray-100'}`}>Collection ({myCollection.length})</button>
+          
+          <div className="flex items-center gap-4">
+             {/* LOGIN / LOGOUT BUTTON */}
+             {user ? (
+                <div className="flex items-center gap-3">
+                    <span className="text-xs font-medium text-gray-500 hidden sm:inline">Signed in as {user.email}</span>
+                    <button onClick={handleLogout} className="text-sm text-red-600 font-medium hover:text-red-700 transition">Sign Out</button>
+                </div>
+             ) : (
+                <button onClick={handleLogin} className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition shadow-sm">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                    Sign in with Google
+                </button>
+             )}
           </div>
+        </div>
+
+        {/* NAVIGATION TABS */}
+        <div className="max-w-7xl mx-auto px-4 pb-0 flex gap-6 overflow-x-auto border-t border-gray-100 mt-2 pt-2">
+            <button onClick={() => setActiveTab('search')} className={`pb-3 text-sm font-medium transition border-b-2 ${activeTab === 'search' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Search Cards</button>
+            <button onClick={() => setActiveTab('list')} className={`pb-3 text-sm font-medium transition border-b-2 ${activeTab === 'list' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Your List ({myList.length})</button>
+            <button onClick={() => setActiveTab('collection')} className={`pb-3 text-sm font-medium transition border-b-2 ${activeTab === 'collection' ? 'border-green-600 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>My Collection ({myCollection.length})</button>
         </div>
       </header>
 
@@ -219,7 +297,7 @@ export default function Home() {
           <div className="max-w-3xl mx-auto space-y-6">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
               <form onSubmit={handleSearch} className="flex gap-4">
-                <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search for a card..." className="flex-1 p-3 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"/>
+                <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search for a card (e.g. Charizard Base Set)..." className="flex-1 p-3 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"/>
                 <button type="submit" disabled={isLoading} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-medium disabled:opacity-50 transition">{isLoading ? '...' : 'Search'}</button>
               </form>
             </div>
@@ -245,13 +323,9 @@ export default function Home() {
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
               <h2 className="text-xl font-bold text-gray-800">Tracked Cards</h2>
               <div className="flex gap-2">
-                 {/* HIDDEN INPUT FOR IMPORT */}
                  <input type="file" accept=".json" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
-                 
-                 {/* RESTORED BUTTONS */}
                 <button onClick={handleImportClick} className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition">Import</button>
                 <button onClick={handleExport} className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition">Export</button>
-                
                 <button onClick={handleBatchRefresh} disabled={isLoading} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition">
                    {isLoading ? 'Updating...' : 'Update Prices'}
                 </button>
@@ -284,13 +358,16 @@ export default function Home() {
                                 </a>
                             )}
                         </div>
-                        {/* OPPOSITE LISTING */}
                         {item.best_source === 'TCGPlayer' && item.ebay_price && (
                              <div className="mt-1 flex items-center gap-2">
                                 <span className="text-xs text-gray-400 font-medium">eBay: ${item.ebay_price}</span>
-                                <a href={item.ebay_link} target="_blank" rel="noopener noreferrer" className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-[10px] px-2 py-0.5 rounded border border-gray-300 transition">
-                                    View
-                                </a>
+                                <a href={item.ebay_link} target="_blank" rel="noopener noreferrer" className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-[10px] px-2 py-0.5 rounded border border-gray-300 transition">View</a>
+                             </div>
+                        )}
+                        {item.best_source === 'eBay' && item.tcg_price && (
+                             <div className="mt-1 flex items-center gap-2">
+                                <span className="text-xs text-gray-400 font-medium">TCG: ${item.tcg_price}</span>
+                                <a href={`https://www.tcgplayer.com/product/${item.card_id}`} target="_blank" rel="noopener noreferrer" className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-[10px] px-2 py-0.5 rounded border border-gray-300 transition">View</a>
                              </div>
                         )}
                     </td>
@@ -310,7 +387,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* COLLECTION TAB (Same implementation as before) */}
         {activeTab === 'collection' && (
            <div className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -352,7 +428,7 @@ export default function Home() {
 
       </main>
 
-      {/* QUICK POPUP MODAL */}
+      {/* PURCHASE MODAL */}
       {purchaseModal.isOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 animate-fade-in-up">
@@ -378,7 +454,7 @@ export default function Home() {
       )}
 
       <footer className="text-center text-xs text-gray-300 py-6">
-        CFinder v17.0 - Fully Loaded
+        CFinder v19.0 - Cloud Enabled
       </footer>
     </div>
   );
