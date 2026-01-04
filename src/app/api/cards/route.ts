@@ -8,32 +8,38 @@ export async function POST(request: Request) {
 
     if (!API_KEY) return NextResponse.json({ error: "Missing JustTCG Key" }, { status: 500 });
 
+    // Check if this is an eBay-only request
+    const isEbayOnly = cards.length > 0 && cards[0].ebayOnly === true;
+    console.log(`🎯 Request mode: ${isEbayOnly ? 'eBay Only' : 'Full Update'}`);
+
     let tcgData: any = { data: [] }; 
 
-    // 1. Batch Fetch - Get all cards by ID first
-    try {
-      const validIds = cards.filter((c: any) => c.id && String(c.id).length > 4);
-      if (validIds.length > 0) {
-          const batchPayload = { items: validIds.map((c: any) => ({ cardId: c.id })) };
-          const tcgResponse = await fetch('https://api.justtcg.com/v1/cards/batch', {
-            method: 'POST',
-            headers: { 'x-api-key': API_KEY, 'Content-Type': 'application/json' },
-            body: JSON.stringify(batchPayload),
-          });
-          if (tcgResponse.ok) tcgData = await tcgResponse.json();
-      }
-    } catch (e) { console.error("Batch Error:", e); }
+    // Skip TCGPlayer lookups if eBay-only mode
+    if (!isEbayOnly) {
+      // 1. Batch Fetch - Get all cards by ID first
+      try {
+        const validIds = cards.filter((c: any) => c.id && String(c.id).length > 4);
+        if (validIds.length > 0) {
+            const batchPayload = { items: validIds.map((c: any) => ({ cardId: c.id })) };
+            const tcgResponse = await fetch('https://api.justtcg.com/v1/cards/batch', {
+              method: 'POST',
+              headers: { 'x-api-key': API_KEY, 'Content-Type': 'application/json' },
+              body: JSON.stringify(batchPayload),
+            });
+            if (tcgResponse.ok) tcgData = await tcgResponse.json();
+        }
+      } catch (e) { console.error("Batch Error:", e); }
 
-    // 2. Batch fetch missing cards by name (all in one call)
-    const missingCards = cards.filter((c: any) => {
-      const found = tcgData.data?.find((d: any) => String(d.id) === String(c.id));
-      return !found && c.grade === "Raw (Ungraded)";
-    });
+      // 2. Batch fetch missing cards by name (all in one call)
+      const missingCards = cards.filter((c: any) => {
+        const found = tcgData.data?.find((d: any) => String(d.id) === String(c.id));
+        return !found && c.grade === "Raw (Ungraded)";
+      });
 
     if (missingCards.length > 0) {
       try {
         // Collect all unique card names
-        const uniqueNames = [...new Set(missingCards.map((c: any) => c.name))];
+        const uniqueNames: string[] = [...new Set(missingCards.map((c: any) => String(c.name)))];
         
         // Search for all missing cards in one batch (JustTCG allows multiple searches)
         const searchPromises = uniqueNames.map(async (name: string) => {
@@ -58,6 +64,7 @@ export async function POST(request: Request) {
         }
       } catch (err) { console.error("Batch search error:", err); }
     }
+    } // Close the if (!isEbayOnly) block
 
     // 3. Process Cards
     const results = await Promise.all(cards.map(async (userCard: any) => {
@@ -68,8 +75,8 @@ export async function POST(request: Request) {
       let bestLink = "";
       let bestSource = "Checking...";
 
-      // --- A. JustTCG Lookup ---
-      if (userCard.grade === "Raw (Ungraded)") {
+      // --- A. JustTCG Lookup --- (Skip if eBay-only mode)
+      if (!isEbayOnly && userCard.grade === "Raw (Ungraded)") {
         let match = tcgData.data?.find((d: any) => String(d.id) === String(userCard.id));
 
         // If not found by ID, try to match by name and set

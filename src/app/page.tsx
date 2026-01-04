@@ -274,6 +274,97 @@ export default function Home() {
     } catch (error: any) { console.error("Batch update failed:", error); } finally { setIsLoading(false); }
   };
 
+  // --- EBAY ONLY REFRESH ---
+  const handleEbayOnlyRefresh = async () => {
+    if (myList.length === 0 && myCollection.length === 0) return;
+    setIsLoading(true);
+    
+    const allCards = [...myList, ...myCollection];
+    
+    // Filter out cards that were eBay-checked within the last 1 hour
+    const now = new Date().getTime();
+    const ONE_HOUR = 60 * 60 * 1000;
+    
+    const cardsToCheck = allCards.filter(c => {
+      if (!c.last_ebay_check) return true; // Never checked, include it
+      const lastCheck = new Date(c.last_ebay_check).getTime();
+      return (now - lastCheck) > ONE_HOUR; // Only check if older than 1 hour
+    });
+    
+    if (cardsToCheck.length === 0) {
+      alert("All cards were eBay-checked within the last hour. Please try again later.");
+      setIsLoading(false);
+      return;
+    }
+    
+    console.log(`🔍 eBay-Only: Checking ${cardsToCheck.length} of ${allCards.length} cards`);
+    
+    const batchPayload = cardsToCheck.map(c => ({ 
+      id: c.card_id, 
+      name: c.name, 
+      set: (c.set_name && !c.set_name.toLowerCase().includes("unknown")) ? c.set_name : "", 
+      grade: c.grade, 
+      isFirstEdition: c.is_first_edition,
+      ebayOnly: true // Flag to tell backend to only check eBay
+    }));
+
+    try {
+      const res = await fetch(`/api/cards?t=${new Date().getTime()}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cards: batchPayload }),
+        cache: 'no-store' 
+      });
+      const responseJson = await res.json();
+      
+      if (!res.ok) throw new Error("eBay check failed");
+
+      console.log("📦 eBay-Only Response:", responseJson.data);
+
+      for (const updated of responseJson.data) {
+        console.log(`🔄 eBay check for card ID: ${updated.id}`, {
+          ebayPrice: updated.ebayPrice
+        });
+
+        const currentCard = cardsToCheck.find(c => c.card_id === updated.id);
+        if (!currentCard) {
+          console.log(`⚠️ Card ${updated.id} not found in cardsToCheck list`);
+          continue;
+        }
+
+        const updatePayload: any = { 
+            ebay_price: updated.ebayPrice,
+            ebay_link: updated.ebayLink,
+            last_ebay_check: new Date().toISOString()
+        };
+
+        // Update best source if eBay is now cheaper than current live price
+        if (updated.ebayPrice && currentCard.live_price) {
+          const ebayPrice = parseFloat(updated.ebayPrice);
+          const currentPrice = parseFloat(currentCard.live_price);
+          
+          if (ebayPrice < currentPrice) {
+            updatePayload.live_price = updated.ebayPrice;
+            updatePayload.best_link = updated.ebayLink;
+            updatePayload.best_source = "eBay";
+            console.log(`💰 eBay is now cheaper! ${ebayPrice} < ${currentPrice}`);
+          }
+        }
+
+        console.log(`💾 Updating eBay data:`, updatePayload);
+
+        const { error } = await supabase.from('cards').update(updatePayload).eq('card_id', updated.id).eq('user_id', userId);
+        
+        if (error) {
+          console.error(`❌ Database update failed for card ${updated.id}:`, error);
+        } else {
+          console.log(`✅ Successfully updated eBay data for card ${updated.id}`);
+        }
+      }
+      fetchCards(userId);
+    } catch (error: any) { console.error("eBay check failed:", error); } finally { setIsLoading(false); }
+  };
+
   // --- MATH ---
   const totalWatchlistValue = myList.reduce((acc, c) => acc + (parseFloat(c.live_price) || 0), 0);
   const totalPortfolioCost = myCollection.reduce((acc, c) => acc + (c.purchase_price || 0), 0);
@@ -348,6 +439,9 @@ export default function Home() {
                 <button onClick={handleImportClick} className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition">Import</button>
                 <button onClick={handleExport} className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition">Export</button>
                 
+                <button onClick={handleEbayOnlyRefresh} disabled={isLoading} className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 transition">
+                  {isLoading ? 'Checking...' : 'Check Ebay Only'}
+                </button>
                 <button onClick={handleBatchRefresh} disabled={isLoading} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition">
                    {isLoading ? 'Updating...' : 'Update Prices'}
                 </button>
@@ -418,9 +512,14 @@ export default function Home() {
              <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                   <h2 className="text-xl font-bold text-gray-800">My Collection</h2>
-                  <button onClick={handleBatchRefresh} disabled={isLoading} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition">
-                    {isLoading ? 'Updating...' : 'Update Values'}
-                  </button>
+                  <div className="flex gap-2">
+                    <button onClick={handleEbayOnlyRefresh} disabled={isLoading} className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 transition">
+                      {isLoading ? 'Checking...' : 'Check Ebay Only'}
+                    </button>
+                    <button onClick={handleBatchRefresh} disabled={isLoading} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition">
+                      {isLoading ? 'Updating...' : 'Update Values'}
+                    </button>
+                  </div>
                </div>
                <table className="w-full text-left">
                   <thead className="bg-gray-50 text-gray-500 text-xs uppercase font-semibold border-b border-gray-100">
