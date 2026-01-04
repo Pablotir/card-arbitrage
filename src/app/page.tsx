@@ -185,7 +185,25 @@ export default function Home() {
     
     const allCards = [...myList, ...myCollection];
     
-    const batchPayload = allCards.map(c => ({ 
+    // Filter out cards that were updated within the last 24 hours
+    const now = new Date().getTime();
+    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+    
+    const cardsToUpdate = allCards.filter(c => {
+      if (!c.last_price_update) return true; // Never updated, include it
+      const lastUpdate = new Date(c.last_price_update).getTime();
+      return (now - lastUpdate) > TWENTY_FOUR_HOURS; // Only update if older than 24 hours
+    });
+    
+    if (cardsToUpdate.length === 0) {
+      alert("All cards were updated within the last 24 hours. Please try again later.");
+      setIsLoading(false);
+      return;
+    }
+    
+    console.log(`🔄 Updating ${cardsToUpdate.length} of ${allCards.length} cards (skipping recently updated cards)`);
+    
+    const batchPayload = cardsToUpdate.map(c => ({ 
       id: c.card_id, 
       name: c.name, 
       set: (c.set_name && !c.set_name.toLowerCase().includes("unknown")) ? c.set_name : "", 
@@ -213,9 +231,9 @@ export default function Home() {
           ebayPrice: updated.ebayPrice
         });
 
-        const currentCard = allCards.find(c => c.card_id === updated.id);
+        const currentCard = cardsToUpdate.find(c => c.card_id === updated.id);
         if (!currentCard) {
-          console.log(`⚠️ Card ${updated.id} not found in allCards list`);
+          console.log(`⚠️ Card ${updated.id} not found in cardsToUpdate list`);
           continue;
         }
         
@@ -223,7 +241,8 @@ export default function Home() {
 
         const updatePayload: any = { 
             ebay_price: updated.ebayPrice,
-            ebay_link: updated.ebayLink
+            ebay_link: updated.ebayLink,
+            last_price_update: new Date().toISOString()
         };
 
         // Determine which price to use based on bestSource
