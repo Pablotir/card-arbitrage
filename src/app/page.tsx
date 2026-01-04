@@ -12,55 +12,42 @@ export default function Home() {
   const [myCollection, setMyCollection] = useState<any[]>([]); 
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  
-  // AUTH STATE
-  const [user, setUser] = useState<any>(null);
   const [userId, setUserId] = useState<string>('');
-  const [isMigrating, setIsMigrating] = useState(false);
+  const [user, setUser] = useState<any>(null);
 
   // MODAL STATE
   const [purchaseModal, setPurchaseModal] = useState<{ isOpen: boolean, card: any | null, price: string }>({ isOpen: false, card: null, price: '' });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- INIT & AUTH ---
+  // --- INIT & UTILS ---
   const generateUUID = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16); });
 
   useEffect(() => {
-    // 1. Check for active Supabase Session
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session?.user) {
-        // LOGGED IN: Use real Supabase ID
         setUser(session.user);
         setUserId(session.user.id);
         fetchCards(session.user.id);
       } else {
-        // GUEST: Use LocalStorage ID
         let storedUid = localStorage.getItem('cfinder_user_id');
-        if (!storedUid) { 
-            storedUid = generateUUID(); 
-            localStorage.setItem('cfinder_user_id', storedUid); 
-        }
+        if (!storedUid) { storedUid = generateUUID(); localStorage.setItem('cfinder_user_id', storedUid); }
         setUserId(storedUid);
         fetchCards(storedUid);
       }
 
-      // Listen for auth changes (Login/Logout)
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
         if (session?.user) {
-            setUser(session.user);
-            setUserId(session.user.id);
-            fetchCards(session.user.id);
-            // Optional: Auto-migrate guest cards to user here if you want
+          setUser(session.user);
+          setUserId(session.user.id);
+          fetchCards(session.user.id);
         } else {
-            setUser(null);
-            const guestId = localStorage.getItem('cfinder_user_id') || generateUUID();
-            setUserId(guestId);
-            setMyList([]); 
-            setMyCollection([]);
-            fetchCards(guestId);
+          setUser(null);
+          const guestId = localStorage.getItem('cfinder_user_id') || generateUUID();
+          setUserId(guestId);
+          fetchCards(guestId);
         }
       });
       return () => subscription.unsubscribe();
@@ -69,22 +56,6 @@ export default function Home() {
     checkUser();
   }, []);
 
-  // --- LOGIN HANDLERS ---
-  const handleLogin = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}`,
-      },
-    });
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    window.location.reload(); // Reload to switch back to guest mode cleanly
-  };
-
-  // --- DATA FETCHING ---
   const fetchCards = async (uid: string) => {
     if (!supabase) return;
     const { data, error } = await supabase.from('cards').select('*').eq('user_id', uid);
@@ -115,6 +86,20 @@ export default function Home() {
     } catch (err) { setErrorMsg("Failed to fetch results"); } finally { setIsLoading(false); }
   };
 
+  const handleLogin = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}`,
+      },
+    });
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.reload();
+  };
+
   const addToTracked = async (card: any) => {
     const tcgId = card.tcgplayerId || card.id;
     const tcgLink = `https://www.tcgplayer.com/product/${tcgId}`;
@@ -135,7 +120,7 @@ export default function Home() {
     if (!error) fetchCards(userId); 
   };
 
-  // --- IMPORT / EXPORT HANDLERS ---
+  // --- IMPORT / EXPORT HANDLERS (Restored) ---
   const handleExport = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(myList, null, 2));
     const a = document.createElement('a');
@@ -199,6 +184,7 @@ export default function Home() {
     setIsLoading(true);
     
     const allCards = [...myList, ...myCollection];
+    
     const batchPayload = allCards.map(c => ({ 
       id: c.card_id, 
       name: c.name, 
@@ -218,38 +204,52 @@ export default function Home() {
       
       if (!res.ok) throw new Error("Update failed");
 
+      console.log("📦 API Response:", responseJson.data);
+
       for (const updated of responseJson.data) {
+        console.log(`🔄 Processing card ID: ${updated.id}`, {
+          bestSource: updated.bestSource,
+          tcgPrice: updated.tcgPrice,
+          ebayPrice: updated.ebayPrice
+        });
+
         const currentCard = allCards.find(c => c.card_id === updated.id);
-        const isRaw = !currentCard?.grade || currentCard.grade === "Raw (Ungraded)";
+        if (!currentCard) {
+          console.log(`⚠️ Card ${updated.id} not found in allCards list`);
+          continue;
+        }
+        
+        const isRaw = !currentCard.grade || currentCard.grade === "Raw (Ungraded)";
 
         const updatePayload: any = { 
             ebay_price: updated.ebayPrice,
             ebay_link: updated.ebayLink
         };
 
-        if (updated.bestSource === 'TCGPlayer' && isRaw) {
+        // Determine which price to use based on bestSource
+        if (updated.bestSource === 'TCGPlayer' && updated.tcgPrice) {
              updatePayload.live_price = updated.tcgPrice;
              updatePayload.best_link = updated.tcgLink || `https://www.tcgplayer.com/product/${updated.id}`;
              updatePayload.best_source = "TCGPlayer";
-        } else {
+        } else if (updated.bestSource === 'eBay' && updated.ebayPrice) {
              updatePayload.live_price = updated.ebayPrice;
              updatePayload.best_link = updated.ebayLink;
              updatePayload.best_source = "eBay";
+        } else {
+             // No price available
+             updatePayload.live_price = null;
+             updatePayload.best_source = "";
         }
 
-        if (isRaw && updated.tcgLink && updated.tcgLink.includes("tcgplayer.com")) {
-            const match = updated.tcgLink.match(/product\/(\d+)/);
-            if (match && match[1] !== updated.id) {
-                updatePayload.card_id = match[1]; 
-            }
-        }
+        console.log(`💾 Updating database with:`, updatePayload);
 
-        // Store TCG price if not winner, for dual display
-        if (updated.tcgPrice && updated.bestSource === 'eBay') {
-             updatePayload.tcg_price = updated.tcgPrice;
+        const { error } = await supabase.from('cards').update(updatePayload).eq('card_id', updated.id).eq('user_id', userId);
+        
+        if (error) {
+          console.error(`❌ Database update failed for card ${updated.id}:`, error);
+        } else {
+          console.log(`✅ Successfully updated card ${updated.id}`);
         }
-
-        await supabase.from('cards').update(updatePayload).eq('card_id', updated.id).eq('user_id', userId);
       }
       fetchCards(userId);
     } catch (error: any) { console.error("Batch update failed:", error); } finally { setIsLoading(false); }
@@ -269,7 +269,6 @@ export default function Home() {
           <h1 className="text-2xl font-bold text-blue-700 tracking-tight">CFinder</h1>
           
           <div className="flex items-center gap-4">
-             {/* LOGIN / LOGOUT BUTTON */}
              {user ? (
                 <div className="flex items-center gap-3">
                     <span className="text-xs font-medium text-gray-500 hidden sm:inline">Signed in as {user.email}</span>
@@ -285,10 +284,10 @@ export default function Home() {
         </div>
 
         {/* NAVIGATION TABS */}
-        <div className="max-w-7xl mx-auto px-4 pb-0 flex gap-6 overflow-x-auto border-t border-gray-100 mt-2 pt-2">
+        <div className="max-w-7xl mx-auto px-4 pb-0 flex justify-center gap-6 overflow-x-auto border-t border-gray-100 mt-2 pt-2">
             <button onClick={() => setActiveTab('search')} className={`pb-3 text-sm font-medium transition border-b-2 ${activeTab === 'search' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Search Cards</button>
-            <button onClick={() => setActiveTab('list')} className={`pb-3 text-sm font-medium transition border-b-2 ${activeTab === 'list' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Your List ({myList.length})</button>
-            <button onClick={() => setActiveTab('collection')} className={`pb-3 text-sm font-medium transition border-b-2 ${activeTab === 'collection' ? 'border-green-600 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>My Collection ({myCollection.length})</button>
+            <button onClick={() => setActiveTab('list')} className={`pb-3 text-sm font-medium transition border-b-2 ${activeTab === 'list' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>My List ({myList.length})</button>
+            <button onClick={() => setActiveTab('collection')} className={`pb-3 text-sm font-medium transition border-b-2 ${activeTab === 'collection' ? 'border-green-600 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Collection ({myCollection.length})</button>
         </div>
       </header>
 
@@ -297,7 +296,7 @@ export default function Home() {
           <div className="max-w-3xl mx-auto space-y-6">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
               <form onSubmit={handleSearch} className="flex gap-4">
-                <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search for a card (e.g. Charizard Base Set)..." className="flex-1 p-3 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"/>
+                <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search for a card..." className="flex-1 p-3 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"/>
                 <button type="submit" disabled={isLoading} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-medium disabled:opacity-50 transition">{isLoading ? '...' : 'Search'}</button>
               </form>
             </div>
@@ -323,9 +322,13 @@ export default function Home() {
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
               <h2 className="text-xl font-bold text-gray-800">Tracked Cards</h2>
               <div className="flex gap-2">
+                 {/* HIDDEN INPUT FOR IMPORT */}
                  <input type="file" accept=".json" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
+                 
+                 {/* RESTORED BUTTONS */}
                 <button onClick={handleImportClick} className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition">Import</button>
                 <button onClick={handleExport} className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition">Export</button>
+                
                 <button onClick={handleBatchRefresh} disabled={isLoading} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition">
                    {isLoading ? 'Updating...' : 'Update Prices'}
                 </button>
@@ -358,16 +361,13 @@ export default function Home() {
                                 </a>
                             )}
                         </div>
+                        {/* OPPOSITE LISTING */}
                         {item.best_source === 'TCGPlayer' && item.ebay_price && (
                              <div className="mt-1 flex items-center gap-2">
                                 <span className="text-xs text-gray-400 font-medium">eBay: ${item.ebay_price}</span>
-                                <a href={item.ebay_link} target="_blank" rel="noopener noreferrer" className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-[10px] px-2 py-0.5 rounded border border-gray-300 transition">View</a>
-                             </div>
-                        )}
-                        {item.best_source === 'eBay' && item.tcg_price && (
-                             <div className="mt-1 flex items-center gap-2">
-                                <span className="text-xs text-gray-400 font-medium">TCG: ${item.tcg_price}</span>
-                                <a href={`https://www.tcgplayer.com/product/${item.card_id}`} target="_blank" rel="noopener noreferrer" className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-[10px] px-2 py-0.5 rounded border border-gray-300 transition">View</a>
+                                <a href={item.ebay_link} target="_blank" rel="noopener noreferrer" className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-[10px] px-2 py-0.5 rounded border border-gray-300 transition">
+                                    View
+                                </a>
                              </div>
                         )}
                     </td>
@@ -387,6 +387,7 @@ export default function Home() {
           </div>
         )}
 
+        {/* COLLECTION TAB (Same implementation as before) */}
         {activeTab === 'collection' && (
            <div className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -428,7 +429,7 @@ export default function Home() {
 
       </main>
 
-      {/* PURCHASE MODAL */}
+      {/* QUICK POPUP MODAL */}
       {purchaseModal.isOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 animate-fade-in-up">
@@ -454,7 +455,7 @@ export default function Home() {
       )}
 
       <footer className="text-center text-xs text-gray-300 py-6">
-        CFinder v19.0 - Cloud Enabled
+        CFinder v17.0 - Fully Loaded
       </footer>
     </div>
   );
