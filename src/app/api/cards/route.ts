@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     if (missingCards.length > 0) {
       try {
         // Collect all unique card names
-        const uniqueNames: string[] = [...new Set(missingCards.map((c: any) => String(c.name)))];
+        const uniqueNames: string[] = [...new Set(missingCards.map((c: any) => String(c.name)))] as string[];
         
         // Search for all missing cards in one batch (JustTCG allows multiple searches)
         const searchPromises = uniqueNames.map(async (name: string) => {
