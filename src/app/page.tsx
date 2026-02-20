@@ -583,26 +583,9 @@ export default function Home() {
               </div>
             ) : (
               /* Static locked placeholder — nothing is rendered or fetched */
-              <div className="min-h-[520px] rounded-xl bg-gray-100 flex flex-col items-center justify-center relative overflow-hidden">
-                {/* Fake blurred row shapes behind the card */}
-                <div className="absolute inset-0 flex flex-col gap-6 p-6 pointer-events-none select-none opacity-40">
-                  {[1, 2, 3].map(n => (
-                    <div key={n} className="space-y-2">
-                      <div className="h-4 w-32 bg-gray-300 rounded-full" />
-                      <div className="flex gap-3">
-                        {Array.from({ length: 7 }).map((_, i) => (
-                          <div key={i} className="flex-none w-44 h-36 bg-white rounded-xl" />
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Frosted overlay */}
-                <div className="absolute inset-0 bg-white/60 backdrop-blur-sm" />
-
+              <div className="min-h-[520px] rounded-xl bg-gray-100 flex flex-col items-center justify-center">
                 {/* Sign-in card */}
-                <div className="relative z-10 bg-white border border-gray-200 rounded-2xl shadow-lg px-10 py-8 flex flex-col items-center gap-4 max-w-sm w-full text-center">
+                <div className="bg-white border border-gray-200 rounded-2xl shadow-lg px-10 py-8 flex flex-col items-center gap-4 max-w-sm w-full text-center">
                   <div className="text-3xl">🔒</div>
                   <h3 className="text-lg font-bold text-gray-900">Sign in to view deals</h3>
                   <p className="text-sm text-gray-500">Create a free account to see live eBay auctions ending soon.</p>
