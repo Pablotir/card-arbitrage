@@ -56,20 +56,39 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get('type') || '10s';
 
+  const game = searchParams.get('game') || 'pokemon';
+  const isOnePiece = game === 'onepiece';
+
   // Build query per section
   let query = '';
-  switch (type) {
-    case '10s':
-      query = 'graded 10 pokemon cards';
-      break;
-    case 'blacklabel':
-      query = 'graded pokemon cards pristine';
-      break;
-    case '9s':
-      query = 'graded 9 pokemon cards';
-      break;
-    default:
-      query = 'graded 10 pokemon cards';
+  if (isOnePiece) {
+    switch (type) {
+      case '10s':
+        query = 'graded 10 one piece card';
+        break;
+      case 'blacklabel':
+        query = 'graded one piece card pristine';
+        break;
+      case '9s':
+        query = 'graded 9 one piece card';
+        break;
+      default:
+        query = 'graded 10 one piece card';
+    }
+  } else {
+    switch (type) {
+      case '10s':
+        query = 'graded 10 pokemon cards';
+        break;
+      case 'blacklabel':
+        query = 'graded pokemon cards pristine';
+        break;
+      case '9s':
+        query = 'graded 9 pokemon cards';
+        break;
+      default:
+        query = 'graded 10 pokemon cards';
+    }
   }
 
   const token = await getEbayToken();

@@ -10,7 +10,9 @@ export async function POST(request: Request) {
 
     // Check if this is an eBay-only request
     const isEbayOnly = cards.length > 0 && cards[0].ebayOnly === true;
-    console.log(`🎯 Request mode: ${isEbayOnly ? 'eBay Only' : 'Full Update'}`);
+    // Determine the game from the first card (default to pokemon)
+    const game: string = cards[0]?.game || 'pokemon';
+    console.log(`🎯 Request mode: ${isEbayOnly ? 'eBay Only' : 'Full Update'} | Game: ${game}`);
 
     let tcgData: any = { data: [] }; 
 
@@ -44,7 +46,8 @@ export async function POST(request: Request) {
         // Search for all missing cards in one batch (JustTCG allows multiple searches)
         const searchPromises = uniqueNames.map(async (name: string) => {
           const cleanQuery = encodeURIComponent(name);
-          const searchRes = await fetch(`https://api.justtcg.com/v1/cards?q=${cleanQuery}&game=pokemon&limit=20`, { 
+          const justTcgGame = game === 'onepiece' ? 'one-piece-card-game' : game;
+          const searchRes = await fetch(`https://api.justtcg.com/v1/cards?q=${cleanQuery}&game=${justTcgGame}&limit=20`, { 
             headers: { 'x-api-key': API_KEY } 
           });
           if (searchRes.ok) {
@@ -89,8 +92,8 @@ export async function POST(request: Request) {
             if (userCard.set) {
               const userSet = userCard.set.toLowerCase();
               match = candidates.find((d: any) => {
-                if (!d.setName) return false;
-                const apiSet = d.setName.toLowerCase();
+                const apiSet = (d.set_name || d.setName || '').toLowerCase();
+                if (!apiSet) return false;
                 return (userSet.includes(apiSet) || apiSet.includes(userSet));
               });
             }
@@ -123,7 +126,10 @@ export async function POST(request: Request) {
             if (chosenVariant) {
                 tcgPrice = getPriorityPrice(chosenVariant);
                 const correctId = match.tcgplayerId || match.id;
-                tcgLink = `https://www.tcgplayer.com/product/${correctId}`; 
+                // Only build a TCGPlayer link for games that are on TCGPlayer (pokemon)
+                tcgLink = match.tcgplayerId 
+                  ? `https://www.tcgplayer.com/product/${correctId}`
+                  : `https://justtcg.com/cards/${correctId}`;
             }
         }
       }
@@ -148,16 +154,16 @@ export async function POST(request: Request) {
       } catch (e) { console.error("eBay error"); }
 
       // --- C. Source Decision ---
-      // Decide Best Source (TCGPlayer vs eBay)
+      // Decide Best Source (TCGPlayer / JustTCG vs eBay)
       if (tcgPrice !== Infinity) {
-        bestSource = "TCGPlayer";
+        bestSource = tcgLink.includes('justtcg.com') ? 'JustTCG' : 'TCGPlayer';
       } else if (ebayPrice !== Infinity) {
         bestSource = "eBay";
       } else {
         bestSource = "";
       }
       
-      // Override: If eBay is cheaper than TCGPlayer, use eBay
+      // Override: If eBay is cheaper, use eBay
       if (ebayPrice < tcgPrice && ebayPrice !== Infinity) {
           bestSource = "eBay";
       }
@@ -184,8 +190,10 @@ export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const q = searchParams.get('q');
+        const game = searchParams.get('game') || 'pokemon';
+        const justTcgGame = game === 'onepiece' ? 'one-piece-card-game' : game;
         const API_KEY = process.env.JUSTTCG_API_KEY;
-        const response = await fetch(`https://api.justtcg.com/v1/cards?game=pokemon&limit=20&q=${q}`, { headers: { 'x-api-key': API_KEY || "" } });
+        const response = await fetch(`https://api.justtcg.com/v1/cards?game=${justTcgGame}&limit=20&q=${q}`, { headers: { 'x-api-key': API_KEY || "" } });
         const data = await response.json();
         return NextResponse.json(data);
     } catch (error) { return NextResponse.json({ error: 'Server Error' }, { status: 500 }); }

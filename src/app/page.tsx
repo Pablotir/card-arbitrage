@@ -94,9 +94,35 @@ function DealRow({ items, isLoading }: { items: any[]; isLoading: boolean }) {
   );
 }
 
+// ---- TCG TOGGLE ----
+function TcgToggle({ value, onChange }: { value: 'pokemon' | 'onepiece'; onChange: (v: 'pokemon' | 'onepiece') => void }) {
+  return (
+    <div className="relative flex items-center bg-gray-100 rounded-full p-1 text-sm font-medium select-none">
+      {/* sliding pill */}
+      <div
+        className={`absolute top-1 bottom-1 bg-white rounded-full shadow transition-transform duration-200 ${value === 'onepiece' ? 'translate-x-full' : 'translate-x-0'}`}
+        style={{ width: 'calc(50% - 4px)', left: 4 }}
+      />
+      <button
+        onClick={() => onChange('pokemon')}
+        className={`relative z-10 px-4 py-1.5 rounded-full transition-colors duration-150 ${value === 'pokemon' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
+      >
+        🎴 Pokémon
+      </button>
+      <button
+        onClick={() => onChange('onepiece')}
+        className={`relative z-10 px-4 py-1.5 rounded-full transition-colors duration-150 ${value === 'onepiece' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
+      >
+        ⚓ One Piece
+      </button>
+    </div>
+  );
+}
+
 export default function Home() {
   // --- STATE ---
-  const [activeTab, setActiveTab] = useState('search'); 
+  const [activeTab, setActiveTab] = useState('search');
+  const [tcg, setTcg] = useState<'pokemon' | 'onepiece'>('pokemon');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<any[]>([]);
   const [myList, setMyList] = useState<any[]>([]);       
@@ -151,14 +177,14 @@ export default function Home() {
     checkUser();
   }, []);
 
-  // Fetch deals when user logs in, refresh every 2 minutes, stop when logged out
+  // Fetch deals when user logs in or switches TCG, refresh every 2 minutes
   useEffect(() => {
     if (!user) return; // don't fetch until authenticated
     fetchDeals();
     const interval = setInterval(() => fetchDeals(), 2 * 60 * 1000);
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, tcg]);
 
   const fetchCards = async (uid: string) => {
     if (!supabase) return;
@@ -184,7 +210,7 @@ export default function Home() {
     if (!query) return;
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/cards?q=${query}`);
+      const res = await fetch(`/api/cards?q=${encodeURIComponent(query)}&game=${tcg}`);
       const data = await res.json();
       setResults(data.data || []);
     } catch (err) { setErrorMsg("Failed to fetch results"); } finally { setIsLoading(false); }
@@ -218,7 +244,8 @@ export default function Home() {
       live_price: "N/A",  
       status: 'tracked',
       best_link: tcgLink, 
-      best_source: "" 
+      best_source: "",
+      game: tcg
     };
     const { error } = await supabase.from('cards').insert(newCard);
     if (!error) fetchCards(userId); 
@@ -312,7 +339,8 @@ export default function Home() {
       name: c.name, 
       set: (c.set_name && !c.set_name.toLowerCase().includes("unknown")) ? c.set_name : "", 
       grade: c.grade, 
-      isFirstEdition: c.is_first_edition 
+      isFirstEdition: c.is_first_edition,
+      game: c.game || 'pokemon'
     }));
 
     try {
@@ -354,6 +382,10 @@ export default function Home() {
              updatePayload.live_price = updated.tcgPrice;
              updatePayload.best_link = updated.tcgLink || `https://www.tcgplayer.com/product/${updated.id}`;
              updatePayload.best_source = "TCGPlayer";
+        } else if (updated.bestSource === 'JustTCG' && updated.tcgPrice) {
+             updatePayload.live_price = updated.tcgPrice;
+             updatePayload.best_link = updated.tcgLink;
+             updatePayload.best_source = "JustTCG";
         } else if (updated.bestSource === 'eBay' && updated.ebayPrice) {
              updatePayload.live_price = updated.ebayPrice;
              updatePayload.best_link = updated.ebayLink;
@@ -409,6 +441,7 @@ export default function Home() {
       set: (c.set_name && !c.set_name.toLowerCase().includes("unknown")) ? c.set_name : "", 
       grade: c.grade, 
       isFirstEdition: c.is_first_edition,
+      game: c.game || 'pokemon',
       ebayOnly: true // Flag to tell backend to only check eBay
     }));
 
@@ -474,9 +507,9 @@ export default function Home() {
     setDealsLoading(true);
     try {
       const [tensRes, blRes, ninesRes] = await Promise.all([
-        fetch('/api/deals?type=10s'),
-        fetch('/api/deals?type=blacklabel'),
-        fetch('/api/deals?type=9s'),
+        fetch(`/api/deals?type=10s&game=${tcg}`),
+        fetch(`/api/deals?type=blacklabel&game=${tcg}`),
+        fetch(`/api/deals?type=9s&game=${tcg}`),
       ]);
       const [tensData, blData, ninesData] = await Promise.all([
         tensRes.json(), blRes.json(), ninesRes.json(),
@@ -494,9 +527,12 @@ export default function Home() {
   };
 
   // --- MATH ---
-  const totalWatchlistValue = myList.reduce((acc, c) => acc + (parseFloat(c.live_price) || 0), 0);
-  const totalPortfolioCost = myCollection.reduce((acc, c) => acc + (c.purchase_price || 0), 0);
-  const totalPortfolioValue = myCollection.reduce((acc, c) => acc + (parseFloat(c.live_price) || 0), 0);
+  const filteredList = myList.filter(c => (c.game || 'pokemon') === tcg);
+  const filteredCollection = myCollection.filter(c => (c.game || 'pokemon') === tcg);
+
+  const totalWatchlistValue = filteredList.reduce((acc, c) => acc + (parseFloat(c.live_price) || 0), 0);
+  const totalPortfolioCost = filteredCollection.reduce((acc, c) => acc + (c.purchase_price || 0), 0);
+  const totalPortfolioValue = filteredCollection.reduce((acc, c) => acc + (parseFloat(c.live_price) || 0), 0);
   const totalProfit = totalPortfolioValue - totalPortfolioCost;
 
   return (
@@ -533,8 +569,12 @@ export default function Home() {
         {activeTab === 'search' && (
           <div className="space-y-6">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-sm font-medium text-gray-600">Searching in:</span>
+                <TcgToggle value={tcg} onChange={setTcg} />
+              </div>
               <form onSubmit={handleSearch} className="flex gap-4">
-                <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search for a card..." className="flex-1 p-3 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"/>
+                <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={tcg === 'pokemon' ? 'Search Pokémon cards...' : 'Search One Piece cards...'} className="flex-1 p-3 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"/>
                 <button type="submit" disabled={isLoading} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-medium disabled:opacity-50 transition">{isLoading ? '...' : 'Search'}</button>
               </form>
             </div>
@@ -605,7 +645,10 @@ export default function Home() {
         {activeTab === 'list' && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-              <h2 className="text-xl font-bold text-gray-800">Tracked Cards</h2>
+              <div className="flex items-center gap-4">
+                <h2 className="text-xl font-bold text-gray-800">Tracked Cards</h2>
+                <TcgToggle value={tcg} onChange={setTcg} />
+              </div>
               <div className="flex gap-2">
                  {/* HIDDEN INPUT FOR IMPORT */}
                  <input type="file" accept=".json" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
@@ -628,7 +671,7 @@ export default function Home() {
                 <tr><th className="p-4">Card</th><th className="p-4">Details</th><th className="p-4">Grade</th><th className="p-4">Market / Best Price</th><th className="p-4">Action</th><th className="p-4 text-right"></th></tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {myList.map((item, i) => (
+                {filteredList.map((item, i) => (
                   <tr key={item.id || i} className="hover:bg-gray-50 transition">
                     <td className="p-4 w-20"><img src={item.image} className="w-12 h-16 object-contain rounded-sm border" /></td>
                     <td className="p-4">
@@ -645,7 +688,7 @@ export default function Home() {
                             {item.live_price && item.live_price !== "N/A" ? `$${item.live_price}` : <span className="text-gray-400 text-sm">$N/A</span>}
                             {item.best_source && (
                                 <a href={item.best_link} target="_blank" rel="noopener noreferrer" className={`text-[10px] text-white px-2 py-0.5 rounded uppercase font-bold tracking-wider ${item.best_source === 'eBay' ? 'bg-blue-500' : 'bg-green-500'}`}>
-                                    {item.best_source === 'eBay' ? 'eBay' : 'TCG'}
+                                    {item.best_source === 'eBay' ? 'eBay' : item.best_source === 'JustTCG' ? 'JustTCG' : 'TCG'}
                                 </a>
                             )}
                         </div>
@@ -666,7 +709,7 @@ export default function Home() {
               </tbody>
             </table>
             
-            {myList.length > 0 && (
+            {filteredList.length > 0 && (
               <div className="bg-gray-50 border-t border-gray-200 p-4 flex justify-end items-center gap-4">
                   <span className="text-gray-500 font-medium">Total Portfolio Value:</span>
                   <span className="text-2xl font-bold text-green-600">${totalWatchlistValue.toFixed(2)}</span>
@@ -686,7 +729,10 @@ export default function Home() {
              
              <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                  <h2 className="text-xl font-bold text-gray-800">My Collection</h2>
+                  <div className="flex items-center gap-4">
+                    <h2 className="text-xl font-bold text-gray-800">My Collection</h2>
+                    <TcgToggle value={tcg} onChange={setTcg} />
+                  </div>
                   <div className="flex gap-2">
                     <button onClick={handleEbayOnlyRefresh} disabled={isLoading} className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 transition">
                       {isLoading ? 'Checking...' : 'Check Ebay Only'}
@@ -701,7 +747,7 @@ export default function Home() {
                     <tr><th className="p-4">Card</th><th className="p-4">Name</th><th className="p-4">Paid</th><th className="p-4">Value</th><th className="p-4">P/L</th><th className="p-4 text-right">Del</th></tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {myCollection.map((item, i) => {
+                    {filteredCollection.map((item, i) => {
                        const profit = (parseFloat(item.live_price) || 0) - (item.purchase_price || 0);
                        return (
                         <tr key={item.id || i} className="hover:bg-gray-50 transition">
