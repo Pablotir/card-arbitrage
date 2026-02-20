@@ -1,7 +1,101 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '../lib/supabase'; 
+import { supabase } from '../lib/supabase';
+
+// ---- DEAL HELPERS (module-level so hooks are stable) ----
+
+function getTimeColor(timeLeft: string): string {
+  if (!timeLeft.includes('h') && !timeLeft.includes('d')) {
+    const mins = parseInt(timeLeft);
+    if (mins < 10) return 'bg-red-100 text-red-700';
+    if (mins < 30) return 'bg-orange-100 text-orange-700';
+  }
+  return 'bg-gray-100 text-gray-600';
+}
+
+function DealRow({ items, isLoading }: { items: any[]; isLoading: boolean }) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const pausedRef = useRef(false);
+  const resumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (items.length === 0) return;
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+    const interval = setInterval(() => {
+      if (pausedRef.current || !wrapper) return;
+      wrapper.scrollLeft += 1;
+      // Seamless loop: when we reach the halfway point (duplicated list), snap back
+      if (wrapper.scrollLeft >= wrapper.scrollWidth / 2) {
+        wrapper.scrollLeft = 0;
+      }
+    }, 30);
+    return () => clearInterval(interval);
+  }, [items]);
+
+  const handleArrow = (dir: 'left' | 'right') => {
+    pausedRef.current = true;
+    if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
+    if (wrapperRef.current) {
+      wrapperRef.current.scrollBy({ left: dir === 'right' ? 220 : -220, behavior: 'smooth' });
+    }
+    // Resume auto-scroll after 5 seconds of inactivity
+    resumeTimerRef.current = setTimeout(() => { pausedRef.current = false; }, 5000);
+  };
+
+  if (items.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-100 p-4 text-center text-sm text-gray-400 h-20 flex items-center justify-center">
+        {isLoading
+          ? <span className="animate-pulse">Loading auctions...</span>
+          : <span>No auctions ending soon right now.</span>}
+      </div>
+    );
+  }
+
+  const doubled = [...items, ...items];
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => handleArrow('left')}
+        className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white border border-gray-200 rounded-full shadow flex items-center justify-center text-lg text-gray-600 hover:bg-gray-50 transition"
+        aria-label="Scroll left"
+      >&#8249;</button>
+      <div
+        ref={wrapperRef}
+        className="overflow-x-auto flex gap-3 px-10 pb-2"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}
+      >
+        {doubled.map((item: any, i: number) => (
+          <a
+            key={i}
+            href={item.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-none w-44 bg-white border border-gray-100 rounded-xl shadow-sm hover:shadow-md transition p-3 flex flex-col gap-2"
+          >
+            {item.image
+              ? <img src={item.image} alt={item.title} className="w-full h-28 object-contain rounded-lg" />
+              : <div className="w-full h-28 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">No Image</div>
+            }
+            <p className="text-[11px] font-semibold text-gray-800 line-clamp-2 leading-tight">{item.title}</p>
+            <div className="mt-auto flex items-center justify-between gap-1">
+              <span className="text-sm font-bold text-blue-600">${item.price}</span>
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded whitespace-nowrap ${getTimeColor(item.timeLeft)}`}>{item.timeLeft}</span>
+            </div>
+          </a>
+        ))}
+      </div>
+      <button
+        onClick={() => handleArrow('right')}
+        className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white border border-gray-200 rounded-full shadow flex items-center justify-center text-lg text-gray-600 hover:bg-gray-50 transition"
+        aria-label="Scroll right"
+      >&#8250;</button>
+    </div>
+  );
+}
 
 export default function Home() {
   // --- STATE ---
@@ -19,6 +113,10 @@ export default function Home() {
   const [purchaseModal, setPurchaseModal] = useState<{ isOpen: boolean, card: any | null, price: string }>({ isOpen: false, card: null, price: '' });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // DEALS STATE
+  const [deals, setDeals] = useState<{ tens: any[]; blackLabel: any[]; nines: any[] }>({ tens: [], blackLabel: [], nines: [] });
+  const [dealsLoading, setDealsLoading] = useState<boolean>(false);
 
   // --- INIT & UTILS ---
   const generateUUID = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16); });
@@ -54,6 +152,14 @@ export default function Home() {
     };
 
     checkUser();
+  }, []);
+
+  // Fetch deals on mount and every 2 minutes
+  useEffect(() => {
+    fetchDeals();
+    const interval = setInterval(() => fetchDeals(), 2 * 60 * 1000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchCards = async (uid: string) => {
@@ -365,6 +471,30 @@ export default function Home() {
     } catch (error: any) { console.error("eBay check failed:", error); } finally { setIsLoading(false); }
   };
 
+  // --- DEALS FETCH ---
+  const fetchDeals = async () => {
+    setDealsLoading(true);
+    try {
+      const [tensRes, blRes, ninesRes] = await Promise.all([
+        fetch('/api/deals?type=10s'),
+        fetch('/api/deals?type=blacklabel'),
+        fetch('/api/deals?type=9s'),
+      ]);
+      const [tensData, blData, ninesData] = await Promise.all([
+        tensRes.json(), blRes.json(), ninesRes.json(),
+      ]);
+      setDeals({
+        tens:       tensData.data  || [],
+        blackLabel: blData.data    || [],
+        nines:      ninesData.data || [],
+      });
+    } catch (err) {
+      console.error('Failed to fetch deals:', err);
+    } finally {
+      setDealsLoading(false);
+    }
+  };
+
   // --- MATH ---
   const totalWatchlistValue = myList.reduce((acc, c) => acc + (parseFloat(c.live_price) || 0), 0);
   const totalPortfolioCost = myCollection.reduce((acc, c) => acc + (c.purchase_price || 0), 0);
@@ -403,15 +533,42 @@ export default function Home() {
 
       <main className="max-w-7xl mx-auto p-6">
         {activeTab === 'search' && (
-          <div className="max-w-3xl mx-auto space-y-6">
+          <div className="space-y-6">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
               <form onSubmit={handleSearch} className="flex gap-4">
                 <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search for a card..." className="flex-1 p-3 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"/>
                 <button type="submit" disabled={isLoading} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-medium disabled:opacity-50 transition">{isLoading ? '...' : 'Search'}</button>
               </form>
             </div>
+
+            {/* BEST DEALS SECTION */}
+            <div className="space-y-5">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-gray-800">🔥 Best Deals Right Now</h2>
+                {dealsLoading && <span className="text-xs text-gray-400 animate-pulse">Refreshing...</span>}
+              </div>
+
+              {/* Black Label / Pristine */}
+              <div>
+                <p className="text-xs font-bold text-white bg-gray-900 border border-gray-700 rounded-lg px-3 py-1.5 inline-block mb-2">⚫ CGC / BGS Black Label &amp; Pristine 10s</p>
+                <DealRow items={deals.blackLabel} isLoading={dealsLoading} />
+              </div>
+
+              {/* 10s */}
+              <div>
+                <p className="text-xs font-bold text-yellow-800 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-1.5 inline-block mb-2">🏆 PSA / CGC / BGS / TAG 10s</p>
+                <DealRow items={deals.tens} isLoading={dealsLoading} />
+              </div>
+
+              {/* 9s */}
+              <div>
+                <p className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 inline-block mb-2">🥈 PSA / CGC / BGS / TAG 9s</p>
+                <DealRow items={deals.nines} isLoading={dealsLoading} />
+              </div>
+            </div>
+
             {results.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {results.map((card, i) => (
                   <div key={card.id || i} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex gap-4 hover:shadow-md transition">
                     <img src={getImageUrl(card)} alt={card.name} className="w-20 h-28 object-contain" />

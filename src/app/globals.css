@@ -24,3 +24,21 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ---- Deal auto-scroller ---- */
+@keyframes deal-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+.deal-scroll-track {
+  display: flex;
+  gap: 0.75rem;
+  width: max-content;
+  animation: deal-scroll linear infinite;
+}
+
+.deal-scroll-track:hover {
+  animation-play-state: paused;
+}
+
