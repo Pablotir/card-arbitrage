@@ -500,7 +500,7 @@ export default function Home() {
   const totalProfit = totalPortfolioValue - totalPortfolioCost;
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans text-gray-900 pb-20">
+    <div className="min-h-screen bg-gray-50 font-sans text-gray-900 flex flex-col">
       {/* HEADER */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -529,7 +529,7 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto p-6">
+      <main className="max-w-7xl mx-auto p-6 flex-1 w-full">
         {activeTab === 'search' && (
           <div className="space-y-6">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
@@ -747,8 +747,67 @@ export default function Home() {
         </div>
       )}
 
-      <footer className="text-center text-xs text-gray-300 py-6">
-        CFinder v17.0 - Fully Loaded
+      <footer className="mt-auto bg-white border-t border-gray-200 text-gray-700">
+        {/* Top bar */}
+        <div className="max-w-5xl mx-auto px-6 py-10 grid grid-cols-1 md:grid-cols-3 gap-8">
+
+          {/* Brand */}
+          <div className="flex flex-col gap-2">
+            <span className="text-xl font-bold tracking-tight text-gray-900">CFinder</span>
+            <p className="text-gray-500 text-sm leading-relaxed">
+              Live Pokémon card arbitrage — track graded card market prices and catch undervalued eBay auctions before they close.
+            </p>
+          </div>
+
+          {/* Links */}
+          <div className="flex flex-col gap-2">
+            <span className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">Quick Links</span>
+            <a href="#" className="text-sm text-gray-600 hover:text-gray-900 transition">Search Cards</a>
+            <a href="#" className="text-sm text-gray-600 hover:text-gray-900 transition">Live Deals</a>
+            <a
+              href="mailto:banditsalandit123@gmail.com"
+              className="text-sm text-gray-600 hover:text-gray-900 transition"
+            >
+              💡 Share an Idea
+            </a>
+          </div>
+
+          {/* Creator */}
+          <div className="flex flex-col gap-3">
+            <span className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">The Builder</span>
+            <p className="text-sm text-gray-500">
+              Made by <a href="https://pabloti.dev" target="_blank" rel="noopener noreferrer" className="text-gray-900 font-semibold hover:text-blue-600 transition">Pablo</a>. I build tools that help me in my daily life.
+            </p>
+            <div className="flex gap-3 mt-1">
+              {/* LinkedIn */}
+              <a
+                href="https://www.linkedin.com/in/pablotiradohidalgo"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition"
+              >
+                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M20.447 20.452H16.9v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a1.98 1.98 0 0 1-1.977-1.98 1.98 1.98 0 1 1 1.977 1.98zm1.709 13.019H3.626V9h3.42v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                </svg>
+                Follow on LinkedIn
+              </a>
+              {/* Personal site */}
+              <a
+                href="https://pabloti.dev"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 border border-gray-200 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg transition"
+              >
+                🌐 Portfolio
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom bar */}
+        <div className="border-t border-gray-100 py-4 px-6 text-center text-gray-400 text-xs">
+          © {new Date().getFullYear()} CFinder by Pablo
+        </div>
       </footer>
     </div>
   );
