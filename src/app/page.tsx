@@ -74,7 +74,7 @@ function DealRow({ items, isLoading }: { items: any[]; isLoading: boolean }) {
             className="flex-none w-44 bg-white border border-gray-100 rounded-xl shadow-sm hover:shadow-md transition p-3 flex flex-col gap-2"
           >
             {item.image
-              ? <img src={item.image} alt={item.title} className="w-full h-28 object-contain rounded-lg" />
+              ? <img src={item.image} alt={item.title} referrerPolicy="no-referrer" className="w-full h-28 object-contain rounded-lg" />
               : <div className="w-full h-28 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">No Image</div>
             }
             <p className="text-[11px] font-semibold text-gray-800 line-clamp-2 leading-tight">{item.title}</p>
@@ -506,19 +506,20 @@ export default function Home() {
   const fetchDeals = async () => {
     setDealsLoading(true);
     try {
-      const [tensRes, blRes, ninesRes] = await Promise.all([
-        fetch(`/api/deals?type=10s&game=${tcg}`),
-        fetch(`/api/deals?type=blacklabel&game=${tcg}`),
-        fetch(`/api/deals?type=9s&game=${tcg}`),
-      ]);
-      const [tensData, blData, ninesData] = await Promise.all([
-        tensRes.json(), blRes.json(), ninesRes.json(),
-      ]);
-      setDeals({
-        tens:       tensData.data  || [],
-        blackLabel: blData.data    || [],
-        nines:      ninesData.data || [],
-      });
+      // Stagger requests by 400 ms each so concurrent users don't all hit eBay simultaneously
+      const tensRes = await fetch(`/api/deals?type=10s&game=${tcg}`);
+      const tensData = await tensRes.json();
+      setDeals(prev => ({ ...prev, tens: tensData.data || [] }));
+
+      await new Promise(r => setTimeout(r, 800));
+      const blRes = await fetch(`/api/deals?type=blacklabel&game=${tcg}`);
+      const blData = await blRes.json();
+      setDeals(prev => ({ ...prev, blackLabel: blData.data || [] }));
+
+      await new Promise(r => setTimeout(r, 800));
+      const ninesRes = await fetch(`/api/deals?type=9s&game=${tcg}`);
+      const ninesData = await ninesRes.json();
+      setDeals(prev => ({ ...prev, nines: ninesData.data || [] }));
     } catch (err) {
       console.error('Failed to fetch deals:', err);
     } finally {

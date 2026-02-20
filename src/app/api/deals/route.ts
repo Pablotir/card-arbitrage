@@ -3,9 +3,17 @@ import { NextResponse } from 'next/server';
 const EBAY_OAUTH_URL = "https://api.ebay.com/identity/v1/oauth2/token";
 const EBAY_BROWSE_URL = "https://api.ebay.com/buy/browse/v1/item_summary/search";
 
-// ---- In-memory token cache (avoids a round-trip auth call on every request) ----
+// ---- In-memory token cache ----
 let cachedToken: string | null = null;
 let tokenExpiresAt = 0;
+
+// ---- In-memory result cache (shared across concurrent requests) ----
+const resultCache: Record<string, { data: any[]; expiresAt: number }> = {};
+const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+
+// ---- In-flight deduplication: if a fetch is already in progress for a key,
+//      subsequent requests await the same promise instead of firing a new eBay call ----
+const inFlight: Map<string, Promise<any[]>> = new Map();
 
 async function getEbayToken() {
   if (cachedToken && Date.now() < tokenExpiresAt) return cachedToken;
@@ -96,22 +104,53 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'eBay authentication failed' }, { status: 500 });
   }
 
+  // 1. Serve fresh cache immediately
+  const cacheKey = `${type}:${game}`;
+  const cached = resultCache[cacheKey];
+  if (cached && Date.now() < cached.expiresAt) {
+    return NextResponse.json({ data: cached.data });
+  }
+
+  // 2. If another request is already fetching this key, wait for it instead of hitting eBay again
+  if (inFlight.has(cacheKey)) {
+    try {
+      const data = await inFlight.get(cacheKey)!;
+      return NextResponse.json({ data });
+    } catch {
+      return NextResponse.json({ data: cached?.data ?? [] });
+    }
+  }
+
+  // 3. We are the first — build and register the fetch promise
+  const fetchPromise = (async (): Promise<any[]> => {
   try {
     // Fetch 50 results sorted by ending soonest, auctions only
     const url = `${EBAY_BROWSE_URL}?q=${encodeURIComponent(query)}&limit=50&sort=endingSoonest&filter=buyingOptions:{AUCTION},itemLocationCountry:US`;
 
-    const res = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
-      },
-      next: { revalidate: 0 }, // never cache
+    // Retry once on 429 after a short delay
+    let res = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${token}`, 'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US' },
+      next: { revalidate: 0 },
     });
+
+    if (res.status === 429) {
+      console.log(`[deals] 429 for ${cacheKey}, retrying in 1.5s…`);
+      await new Promise(r => setTimeout(r, 1500));
+      // Re-fetch fresh token in case it expired
+      const freshToken = await getEbayToken();
+      if (freshToken) {
+        res = await fetch(url, {
+          headers: { 'Authorization': `Bearer ${freshToken}`, 'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US' },
+          next: { revalidate: 0 },
+        });
+      }
+    }
 
     if (!res.ok) {
       const errText = await res.text();
       console.error('eBay Browse API error:', errText);
-      return NextResponse.json({ error: 'eBay API error' }, { status: 500 });
+      // Return whatever stale data exists (check live cache, not the captured snapshot)
+      return resultCache[cacheKey]?.data ?? [];
     }
 
     const data = await res.json();
@@ -192,9 +231,24 @@ export async function GET(request: Request) {
       .sort((a, b) => new Date(a.endDate).getTime() - new Date(b.endDate).getTime())
       .slice(0, 20);
 
-    return NextResponse.json({ data: filtered });
+    // Populate cache so concurrent/repeat requests skip eBay
+    resultCache[cacheKey] = { data: filtered, expiresAt: Date.now() + CACHE_TTL_MS };
+    return filtered;
   } catch (err) {
     console.error('Deals API error:', err);
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    // Return stale data on any error rather than an empty failure
+    return resultCache[cacheKey]?.data ?? [];
+  } finally {
+    inFlight.delete(cacheKey);
+  }
+  })();
+
+  inFlight.set(cacheKey, fetchPromise);
+
+  try {
+    const data = await fetchPromise;
+    return NextResponse.json({ data });
+  } catch {
+    return NextResponse.json({ data: resultCache[cacheKey]?.data ?? [] });
   }
 }
