@@ -3,7 +3,13 @@ import { NextResponse } from 'next/server';
 const EBAY_OAUTH_URL = "https://api.ebay.com/identity/v1/oauth2/token";
 const EBAY_BROWSE_URL = "https://api.ebay.com/buy/browse/v1/item_summary/search";
 
+// ---- In-memory token cache (avoids a round-trip auth call on every request) ----
+let cachedToken: string | null = null;
+let tokenExpiresAt = 0;
+
 async function getEbayToken() {
+  if (cachedToken && Date.now() < tokenExpiresAt) return cachedToken;
+
   const auth = Buffer.from(`${process.env.EBAY_APP_ID}:${process.env.EBAY_CERT_ID}`).toString('base64');
   try {
     const res = await fetch(EBAY_OAUTH_URL, {
@@ -19,7 +25,10 @@ async function getEbayToken() {
       console.error('eBay Token Error:', data);
       return null;
     }
-    return data.access_token;
+    cachedToken = data.access_token;
+    // eBay tokens last 7200s; refresh 60s early to be safe
+    tokenExpiresAt = Date.now() + (data.expires_in - 60) * 1000;
+    return cachedToken;
   } catch (err) {
     console.error('eBay Auth Error:', err);
     return null;
@@ -45,9 +54,7 @@ function formatTimeLeft(endDate: Date): string | null {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  // type: '10s' | 'blacklabel' | '9s' | 'custom'
   const type = searchParams.get('type') || '10s';
-  const customGrade = searchParams.get('grade') || '8';
 
   // Build query per section
   let query = '';
@@ -91,17 +98,6 @@ export async function GET(request: Request) {
     const data = await res.json();
     const items: any[] = data.itemSummaries || [];
 
-    const now = new Date();
-    const debugRaw = items.map((item: any) => ({
-      title: item.title,
-      price: item.price?.value,
-      itemEndDate: item.itemEndDate,
-      buyingOptions: item.buyingOptions,
-      minsUntilEnd: item.itemEndDate
-        ? Math.round((new Date(item.itemEndDate).getTime() - now.getTime()) / 60000)
-        : null,
-    }));
-
     const goodItems: any[] = [];
     const zeroItems: any[] = []; // $0 price but valid time — need retry
 
@@ -139,48 +135,45 @@ export async function GET(request: Request) {
       }
     }
 
-    // Retry $0 listings via direct item lookup (returns currentBidPrice)
-    for (const { item, timeLeft } of zeroItems) {
-      try {
+    // Retry $0 listings in parallel (instead of sequentially)
+    const retrySettled = await Promise.allSettled(
+      zeroItems.map(async ({ item, timeLeft }) => {
         const itemRes = await fetch(
           `${EBAY_BROWSE_URL.replace('/item_summary/search', '')}/item/${item.itemId}`,
           { headers: { 'Authorization': `Bearer ${token}`, 'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US' } }
         );
-        if (!itemRes.ok) continue;
+        if (!itemRes.ok) return null;
         const itemData = await itemRes.json();
         const retryPrice = parseFloat(
           itemData.currentBidPrice?.value ||
           itemData.price?.value ||
           '0'
         );
-        if (retryPrice > 0) {
-          goodItems.push({
-            id: item.itemId,
-            title: item.title,
-            price: retryPrice.toFixed(2),
-            currency: itemData.currentBidPrice?.currency || 'USD',
-            timeLeft,
-            endDate: item.itemEndDate,
-            link: item.itemWebUrl,
-            image: item.image?.imageUrl || itemData.image?.imageUrl || '',
-          });
-        }
-      } catch (_) { /* skip if individual lookup fails */ }
+        if (retryPrice <= 0) return null;
+        return {
+          id: item.itemId,
+          title: item.title,
+          price: retryPrice.toFixed(2),
+          currency: itemData.currentBidPrice?.currency || 'USD',
+          timeLeft,
+          endDate: item.itemEndDate,
+          link: item.itemWebUrl,
+          image: item.image?.imageUrl || itemData.image?.imageUrl || '',
+        };
+      })
+    );
+
+    for (const result of retrySettled) {
+      if (result.status === 'fulfilled' && result.value) {
+        goodItems.push(result.value);
+      }
     }
 
     const filtered = goodItems
       .sort((a, b) => new Date(a.endDate).getTime() - new Date(b.endDate).getTime())
       .slice(0, 20);
 
-    return NextResponse.json({
-      data: filtered,
-      debug: {
-        query,
-        totalFromEbay: items.length,
-        afterFilter: filtered.length,
-        raw: debugRaw,   // shows each item's end date & mins remaining
-      },
-    });
+    return NextResponse.json({ data: filtered });
   } catch (err) {
     console.error('Deals API error:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
