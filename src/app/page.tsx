@@ -759,14 +759,13 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Links */}
+          {/* Share an Idea */}
           <div className="flex flex-col gap-2">
-            <span className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">Quick Links</span>
-            <a href="#" className="text-sm text-gray-600 hover:text-gray-900 transition">Search Cards</a>
-            <a href="#" className="text-sm text-gray-600 hover:text-gray-900 transition">Live Deals</a>
+            <span className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">Got an Idea?</span>
+            <p className="text-sm text-gray-500">Have a feature request or suggestion? We&apos;d love to hear it.</p>
             <a
               href="mailto:banditsalandit123@gmail.com"
-              className="text-sm text-gray-600 hover:text-gray-900 transition"
+              className="inline-flex items-center gap-2 mt-1 text-sm font-medium text-blue-600 hover:text-blue-800 transition"
             >
               💡 Share an Idea
             </a>
