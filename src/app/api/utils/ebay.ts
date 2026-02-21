@@ -9,7 +9,7 @@ let tokenExpiresAt = 0;
 
 // ---- Module-level result cache (10 min TTL) ----
 const RESULT_CACHE_TTL_MS = 10 * 60 * 1000;
-const resultCache = new Map<string, { value: ReturnType<typeof Promise.resolve<any>>; expiresAt: number }>();
+const resultCache = new Map<string, { value: any; expiresAt: number }>();
 
 // ---- In-flight deduplication ----
 const inFlight = new Map<string, Promise<any>>();
