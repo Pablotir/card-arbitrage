@@ -119,6 +119,16 @@ function TcgToggle({ value, onChange }: { value: 'pokemon' | 'onepiece'; onChang
   );
 }
 
+// Retries an async function once (with a 1.5 s delay) before giving up.
+async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch {
+    await new Promise(r => setTimeout(r, 1500));
+    return fn();
+  }
+}
+
 export default function Home() {
   // --- STATE ---
   const [activeTab, setActiveTab] = useState('search');
@@ -136,10 +146,20 @@ export default function Home() {
   const [purchaseModal, setPurchaseModal] = useState<{ isOpen: boolean, card: any | null, price: string }>({ isOpen: false, card: null, price: '' });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Tracks the user-id we last called fetchCards for, so tab-focus auth
+  // events don't trigger redundant re-fetches for the same user.
+  const lastFetchedUidRef = useRef<string | null>(null);
+
+  const fetchCardsOnce = (uid: string) => {
+    if (lastFetchedUidRef.current === uid) return;
+    lastFetchedUidRef.current = uid;
+    fetchCards(uid);
+  };
 
   // DEALS STATE
   const [deals, setDeals] = useState<{ tens: any[]; blackLabel: any[]; nines: any[] }>({ tens: [], blackLabel: [], nines: [] });
   const [dealsLoading, setDealsLoading] = useState<boolean>(false);
+  const [serverError, setServerError] = useState<string | null>(null);
 
   // --- INIT & UTILS ---
   const generateUUID = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16); });
@@ -151,24 +171,29 @@ export default function Home() {
       if (session?.user) {
         setUser(session.user);
         setUserId(session.user.id);
-        fetchCards(session.user.id);
+        fetchCardsOnce(session.user.id);
       } else {
         let storedUid = localStorage.getItem('cfinder_user_id');
         if (!storedUid) { storedUid = generateUUID(); localStorage.setItem('cfinder_user_id', storedUid); }
         setUserId(storedUid);
-        fetchCards(storedUid);
+        fetchCardsOnce(storedUid);
       }
 
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-        if (session?.user) {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        // Only react to genuine sign-in / sign-out transitions.
+        // TOKEN_REFRESHED, INITIAL_SESSION, USER_UPDATED etc. all fire on tab
+        // focus or in the background — ignore them to prevent spurious reloads.
+        if (event === 'SIGNED_IN') {
+          if (!session?.user) return;
           setUser(session.user);
           setUserId(session.user.id);
-          fetchCards(session.user.id);
-        } else {
+          fetchCardsOnce(session.user.id);
+        } else if (event === 'SIGNED_OUT') {
           setUser(null);
+          lastFetchedUidRef.current = null;
           const guestId = localStorage.getItem('cfinder_user_id') || generateUUID();
           setUserId(guestId);
-          fetchCards(guestId);
+          fetchCardsOnce(guestId);
         }
       });
       return () => subscription.unsubscribe();
@@ -344,15 +369,17 @@ export default function Home() {
     }));
 
     try {
-      const res = await fetch(`/api/cards?t=${new Date().getTime()}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cards: batchPayload }),
-        cache: 'no-store' 
+      const responseJson = await withRetry(async () => {
+        const r = await fetch(`/api/cards?t=${new Date().getTime()}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cards: batchPayload }),
+          cache: 'no-store'
+        });
+        const json = await r.json();
+        if (!r.ok) throw new Error("Update failed");
+        return json;
       });
-      const responseJson = await res.json();
-      
-      if (!res.ok) throw new Error("Update failed");
 
       console.log("📦 API Response:", responseJson.data);
 
@@ -407,7 +434,10 @@ export default function Home() {
         }
       }
       fetchCards(userId);
-    } catch (error: any) { console.error("Batch update failed:", error); } finally { setIsLoading(false); }
+    } catch (error: any) {
+      console.error("Batch update failed:", error);
+      setServerError("We're having server issues. Please come back later.");
+    } finally { setIsLoading(false); }
   };
 
   // --- EBAY ONLY REFRESH ---
@@ -446,15 +476,17 @@ export default function Home() {
     }));
 
     try {
-      const res = await fetch(`/api/cards?t=${new Date().getTime()}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cards: batchPayload }),
-        cache: 'no-store' 
+      const responseJson = await withRetry(async () => {
+        const r = await fetch(`/api/cards?t=${new Date().getTime()}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cards: batchPayload }),
+          cache: 'no-store'
+        });
+        const json = await r.json();
+        if (!r.ok) throw new Error("eBay check failed");
+        return json;
       });
-      const responseJson = await res.json();
-      
-      if (!res.ok) throw new Error("eBay check failed");
 
       console.log("📦 eBay-Only Response:", responseJson.data);
 
@@ -499,29 +531,43 @@ export default function Home() {
         }
       }
       fetchCards(userId);
-    } catch (error: any) { console.error("eBay check failed:", error); } finally { setIsLoading(false); }
+    } catch (error: any) {
+      console.error("eBay check failed:", error);
+      setServerError("We're having server issues. Please come back later.");
+    } finally { setIsLoading(false); }
   };
 
   // --- DEALS FETCH ---
   const fetchDeals = async () => {
     setDealsLoading(true);
+    setServerError(null);
     try {
       // Stagger requests by 400 ms each so concurrent users don't all hit eBay simultaneously
-      const tensRes = await fetch(`/api/deals?type=10s&game=${tcg}`);
-      const tensData = await tensRes.json();
+      const tensData = await withRetry(async () => {
+        const r = await fetch(`/api/deals?type=10s&game=${tcg}`);
+        if (!r.ok) throw new Error('deals 10s failed');
+        return r.json();
+      });
       setDeals(prev => ({ ...prev, tens: tensData.data || [] }));
 
       await new Promise(r => setTimeout(r, 800));
-      const blRes = await fetch(`/api/deals?type=blacklabel&game=${tcg}`);
-      const blData = await blRes.json();
+      const blData = await withRetry(async () => {
+        const r = await fetch(`/api/deals?type=blacklabel&game=${tcg}`);
+        if (!r.ok) throw new Error('deals blacklabel failed');
+        return r.json();
+      });
       setDeals(prev => ({ ...prev, blackLabel: blData.data || [] }));
 
       await new Promise(r => setTimeout(r, 800));
-      const ninesRes = await fetch(`/api/deals?type=9s&game=${tcg}`);
-      const ninesData = await ninesRes.json();
+      const ninesData = await withRetry(async () => {
+        const r = await fetch(`/api/deals?type=9s&game=${tcg}`);
+        if (!r.ok) throw new Error('deals 9s failed');
+        return r.json();
+      });
       setDeals(prev => ({ ...prev, nines: ninesData.data || [] }));
     } catch (err) {
-      console.error('Failed to fetch deals:', err);
+      console.error('Failed to fetch deals after retry:', err);
+      setServerError("We're having server issues. Please come back later.");
     } finally {
       setDealsLoading(false);
     }
@@ -567,6 +613,13 @@ export default function Home() {
       </header>
 
       <main className="max-w-7xl mx-auto p-6 flex-1 w-full">
+        {serverError && (
+          <div className="mb-4 flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm font-medium">
+            <span className="text-lg">⚠️</span>
+            <span>{serverError}</span>
+            <button onClick={() => setServerError(null)} className="ml-auto text-red-400 hover:text-red-600 transition" aria-label="Dismiss">✕</button>
+          </div>
+        )}
         {activeTab === 'search' && (
           <div className="space-y-6">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">

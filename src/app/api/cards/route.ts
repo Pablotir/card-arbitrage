@@ -69,8 +69,9 @@ export async function POST(request: Request) {
     }
     } // Close the if (!isEbayOnly) block
 
-    // 3. Process Cards
-    const results = await Promise.all(cards.map(async (userCard: any) => {
+    // 3. Process Cards (sequential to stay within eBay rate limits)
+    const results: any[] = [];
+    for (const userCard of cards) {
       let tcgPrice = Infinity;
       let tcgLink = "";
       let ebayPrice = Infinity;
@@ -168,7 +169,7 @@ export async function POST(request: Request) {
           bestSource = "eBay";
       }
 
-      return {
+      results.push({
         id: userCard.id,
         bestSource: bestSource,
         // Send BOTH prices back
@@ -176,8 +177,8 @@ export async function POST(request: Request) {
         tcgLink: tcgLink,
         ebayPrice: ebayPrice === Infinity ? null : ebayPrice.toFixed(2),
         ebayLink: ebayLink
-      };
-    }));
+      });
+    }
 
     return NextResponse.json({ data: results });
 

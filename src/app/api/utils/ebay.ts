@@ -3,7 +3,20 @@
 const EBAY_OAUTH_URL = "https://api.ebay.com/identity/v1/oauth2/token";
 const EBAY_SEARCH_URL = "https://api.ebay.com/buy/browse/v1/item_summary/search";
 
+// ---- Module-level token cache ----
+let cachedToken: string | null = null;
+let tokenExpiresAt = 0;
+
+// ---- Module-level result cache (10 min TTL) ----
+const RESULT_CACHE_TTL_MS = 10 * 60 * 1000;
+const resultCache = new Map<string, { value: ReturnType<typeof Promise.resolve<any>>; expiresAt: number }>();
+
+// ---- In-flight deduplication ----
+const inFlight = new Map<string, Promise<any>>();
+
 async function getEbayToken() {
+  if (cachedToken && Date.now() < tokenExpiresAt) return cachedToken;
+
   const auth = Buffer.from(`${process.env.EBAY_APP_ID}:${process.env.EBAY_CERT_ID}`).toString('base64');
   
   try {
@@ -21,19 +34,17 @@ async function getEbayToken() {
         console.error("❌ eBay Token Error:", data);
         return null;
     }
-    return data.access_token;
+    cachedToken = data.access_token;
+    // eBay tokens last 7200s; refresh 60s early to be safe
+    tokenExpiresAt = Date.now() + ((data.expires_in ?? 7200) - 60) * 1000;
+    return cachedToken;
   } catch (error) {
     console.error("❌ eBay Auth Network Error:", error);
     return null;
   }
 }
 
-export async function searchEbay(cardName: string, set: string, grade: string, isFirstEd: boolean) {
-  const token = await getEbayToken();
-  if (!token) {
-      console.log("⚠️ No eBay Token available. Check .env keys.");
-      return { price: null, link: null };
-  }
+async function _searchEbay(cardName: string, set: string, grade: string, isFirstEd: boolean, token: string) {
 
   // CLEANUP: Convert "crown-zenith-pokemon" -> "crown zenith"
   let cleanSet = set ? set.replace(/-/g, ' ').replace('pokemon', '').trim() : "";
@@ -125,4 +136,40 @@ export async function searchEbay(cardName: string, set: string, grade: string, i
   // If loop finishes with no results, fallback to TCGPlayer
   console.log("❌ No eBay results found - falling back to TCGPlayer");
   return { price: null, link: null };
+}
+
+export async function searchEbay(cardName: string, set: string, grade: string, isFirstEd: boolean) {
+  const token = await getEbayToken();
+  if (!token) {
+    console.log("⚠️ No eBay Token available. Check .env keys.");
+    return { price: null, link: null };
+  }
+
+  const cacheKey = `${cardName}|${set}|${grade}|${isFirstEd}`;
+
+  // Return cached result if still fresh
+  const cached = resultCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    console.log(`📦 eBay cache hit: ${cacheKey}`);
+    return cached.value;
+  }
+
+  // Deduplicate in-flight requests for the same key
+  const existing = inFlight.get(cacheKey);
+  if (existing) {
+    console.log(`⏳ eBay in-flight dedup: ${cacheKey}`);
+    return existing;
+  }
+
+  const promise = _searchEbay(cardName, set, grade, isFirstEd, token).then((result) => {
+    resultCache.set(cacheKey, { value: result, expiresAt: Date.now() + RESULT_CACHE_TTL_MS });
+    inFlight.delete(cacheKey);
+    return result;
+  }).catch((err) => {
+    inFlight.delete(cacheKey);
+    throw err;
+  });
+
+  inFlight.set(cacheKey, promise);
+  return promise;
 }

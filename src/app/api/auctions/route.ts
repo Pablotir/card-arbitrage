@@ -3,7 +3,13 @@ import { NextResponse } from 'next/server';
 const EBAY_OAUTH_URL = "https://api.ebay.com/identity/v1/oauth2/token";
 const EBAY_BROWSE_URL = "https://api.ebay.com/buy/browse/v1/item_summary/search";
 
+// ---- Module-level token cache ----
+let cachedToken: string | null = null;
+let tokenExpiresAt = 0;
+
 async function getEbayToken() {
+  if (cachedToken && Date.now() < tokenExpiresAt) return cachedToken;
+
   const auth = Buffer.from(`${process.env.EBAY_APP_ID}:${process.env.EBAY_CERT_ID}`).toString('base64');
   try {
     const res = await fetch(EBAY_OAUTH_URL, {
@@ -12,7 +18,13 @@ async function getEbayToken() {
       body: 'grant_type=client_credentials&scope=https://api.ebay.com/oauth/api_scope'
     });
     const data = await res.json();
-    return data.access_token;
+    if (data.error) {
+      console.error('eBay Token Error:', data);
+      return null;
+    }
+    cachedToken = data.access_token;
+    tokenExpiresAt = Date.now() + ((data.expires_in ?? 7200) - 60) * 1000;
+    return cachedToken;
   } catch (error) { return null; }
 }
 
