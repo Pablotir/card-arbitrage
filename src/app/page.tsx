@@ -1,252 +1,172 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '@/lib/supabase';
+import { CardItem, SearchCardResult, TcgGame, DealItem } from '@/lib/types';
+import { useTheme } from '@/hooks/useTheme';
+import { useCards } from '@/hooks/useCards';
+import { useSniper } from '@/hooks/useSniper';
 
-// ---- DEAL HELPERS (module-level so hooks are stable) ----
-
-function getTimeColor(timeLeft: string): string {
-  if (!timeLeft.includes('h') && !timeLeft.includes('d')) {
-    const mins = parseInt(timeLeft);
-    if (mins < 10) return 'bg-red-100 text-red-700';
-    if (mins < 30) return 'bg-orange-100 text-orange-700';
-  }
-  return 'bg-gray-100 text-gray-600';
-}
-
-function DealRow({ items, isLoading }: { items: any[]; isLoading: boolean }) {
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const pausedRef = useRef(false);
-  const resumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    if (items.length === 0) return;
-    const wrapper = wrapperRef.current;
-    if (!wrapper) return;
-    const interval = setInterval(() => {
-      if (pausedRef.current || !wrapper) return;
-      wrapper.scrollLeft += 1;
-      if (wrapper.scrollLeft >= wrapper.scrollWidth / 2) wrapper.scrollLeft = 0;
-    }, 30);
-    return () => clearInterval(interval);
-  }, [items]);
-
-  const handleArrow = (dir: 'left' | 'right') => {
-    pausedRef.current = true;
-    if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
-    if (wrapperRef.current) {
-      wrapperRef.current.scrollBy({ left: dir === 'right' ? 220 : -220, behavior: 'smooth' });
-    }
-    // Resume auto-scroll after 5 seconds of inactivity
-    resumeTimerRef.current = setTimeout(() => { pausedRef.current = false; }, 5000);
-  };
-
-  if (items.length === 0) {
-    return (
-      <div className="bg-white rounded-xl border border-gray-100 p-4 text-center text-sm text-gray-400 h-20 flex items-center justify-center">
-        {isLoading
-          ? <span className="animate-pulse">Loading auctions...</span>
-          : <span>No auctions ending soon right now.</span>}
-      </div>
-    );
-  }
-
-  const doubled = [...items, ...items];
-
-  return (
-    <div className="relative">
-      <button
-        onClick={() => handleArrow('left')}
-        className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white border border-gray-200 rounded-full shadow flex items-center justify-center text-lg text-gray-600 hover:bg-gray-50 transition"
-        aria-label="Scroll left"
-      >&#8249;</button>
-      <div
-        ref={wrapperRef}
-        className="overflow-x-auto flex gap-3 px-10 pb-2"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' } as React.CSSProperties}
-      >
-        {doubled.map((item: any, i: number) => (
-          <a
-            key={i}
-            href={item.link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-none w-44 bg-white border border-gray-100 rounded-xl shadow-sm hover:shadow-md transition p-3 flex flex-col gap-2"
-          >
-            {item.image
-              ? <img src={item.image} alt={item.title} referrerPolicy="no-referrer" className="w-full h-28 object-contain rounded-lg" />
-              : <div className="w-full h-28 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">No Image</div>
-            }
-            <p className="text-[11px] font-semibold text-gray-800 line-clamp-2 leading-tight">{item.title}</p>
-            <div className="mt-auto flex items-center justify-between gap-1">
-              <span className="text-sm font-bold text-blue-600">${item.price}</span>
-              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded whitespace-nowrap ${getTimeColor(item.timeLeft)}`}>{item.timeLeft}</span>
-            </div>
-          </a>
-        ))}
-      </div>
-      <button
-        onClick={() => handleArrow('right')}
-        className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white border border-gray-200 rounded-full shadow flex items-center justify-center text-lg text-gray-600 hover:bg-gray-50 transition"
-        aria-label="Scroll right"
-      >&#8250;</button>
-    </div>
-  );
-}
-
-// ---- TCG TOGGLE ----
-function TcgToggle({ value, onChange }: { value: 'pokemon' | 'onepiece'; onChange: (v: 'pokemon' | 'onepiece') => void }) {
-  return (
-    <div className="relative flex items-center bg-gray-100 rounded-full p-1 text-sm font-medium select-none">
-      {/* sliding pill */}
-      <div
-        className={`absolute top-1 bottom-1 bg-white rounded-full shadow transition-transform duration-200 ${value === 'onepiece' ? 'translate-x-full' : 'translate-x-0'}`}
-        style={{ width: 'calc(50% - 4px)', left: 4 }}
-      />
-      <button
-        onClick={() => onChange('pokemon')}
-        className={`relative z-10 px-4 py-1.5 rounded-full transition-colors duration-150 ${value === 'pokemon' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
-      >
-        🎴 Pokémon
-      </button>
-      <button
-        onClick={() => onChange('onepiece')}
-        className={`relative z-10 px-4 py-1.5 rounded-full transition-colors duration-150 ${value === 'onepiece' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
-      >
-        ⚓ One Piece
-      </button>
-    </div>
-  );
-}
-
-// Retries an async function once (with a 1.5 s delay) before giving up.
-async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
-  try {
-    return await fn();
-  } catch {
-    await new Promise(r => setTimeout(r, 1500));
-    return fn();
-  }
-}
+// Components
+import { Header } from '@/components/layout/Header';
+import { Footer } from '@/components/layout/Footer';
+import { SearchBar } from '@/components/search/SearchBar';
+import { SearchResults } from '@/components/search/SearchResults';
+import { CardTable } from '@/components/cards/CardTable';
+import { PortfolioStats } from '@/components/collection/PortfolioStats';
+import { CollectionTable } from '@/components/collection/CollectionTable';
+import { DealSection } from '@/components/deals/DealSection';
+import { SniperDashboard } from '@/components/sniper/SniperDashboard';
+import { PurchaseModal } from '@/components/cards/PurchaseModal';
+import { SniperRuleModal } from '@/components/sniper/SniperRuleModal';
+import { ToastContainer, ToastMessage } from '@/components/ui/Toast';
 
 export default function Home() {
-  // --- STATE ---
-  const [activeTab, setActiveTab] = useState('search');
-  const [tcg, setTcg] = useState<'pokemon' | 'onepiece'>('pokemon');
+  const { theme, toggleTheme, mounted: themeMounted } = useTheme();
+
+  // Navigation & Game State
+  const [activeTab, setActiveTab] = useState<'search' | 'list' | 'collection' | 'sniper'>('search');
+  const [tcg, setTcg] = useState<TcgGame>('pokemon');
+
+  // Search State
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<any[]>([]);
-  const [myList, setMyList] = useState<any[]>([]);       
-  const [myCollection, setMyCollection] = useState<any[]>([]); 
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [searchResults, setSearchResults] = useState<SearchCardResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // User & Auth State
   const [userId, setUserId] = useState<string>('');
   const [user, setUser] = useState<any>(null);
 
-  // MODAL STATE
-  const [purchaseModal, setPurchaseModal] = useState<{ isOpen: boolean, card: any | null, price: string }>({ isOpen: false, card: null, price: '' });
+  // Hooks
+  const {
+    myList,
+    myCollection,
+    isLoading: isCardsLoading,
+    serverError,
+    setServerError,
+    fetchCards,
+    addToTracked,
+    updateCardDetails,
+    deleteCard,
+    moveToCollection,
+    handleBatchRefresh,
+    handleEbayOnlyRefresh
+  } = useCards(userId);
 
+  const {
+    rules: sniperRules,
+    fetchRules: fetchSniperRules,
+    addRule: addSniperRule,
+    deleteRule: deleteSniperRule
+  } = useSniper(userId);
+
+  // Deals State
+  const [deals, setDeals] = useState<{ tens: DealItem[]; blackLabel: DealItem[]; nines: DealItem[] }>({
+    tens: [],
+    blackLabel: [],
+    nines: []
+  });
+  const [dealsLoading, setDealsLoading] = useState(false);
+
+  // Modals
+  const [purchaseModalCard, setPurchaseModalCard] = useState<CardItem | null>(null);
+  const [snipeModalCard, setSnipeModalCard] = useState<any | null>(null);
+  const [isSnipeModalOpen, setIsSnipeModalOpen] = useState(false);
+
+  // Toasts
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // Tracks the user-id we last called fetchCards for, so tab-focus auth
-  // events don't trigger redundant re-fetches for the same user.
-  const lastFetchedUidRef = useRef<string | null>(null);
 
-  const fetchCardsOnce = (uid: string) => {
-    if (lastFetchedUidRef.current === uid) return;
-    lastFetchedUidRef.current = uid;
-    fetchCards(uid);
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    setToasts((prev) => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
   };
 
-  // DEALS STATE
-  const [deals, setDeals] = useState<{ tens: any[]; blackLabel: any[]; nines: any[] }>({ tens: [], blackLabel: [], nines: [] });
-  const [dealsLoading, setDealsLoading] = useState<boolean>(false);
-  const [serverError, setServerError] = useState<string | null>(null);
+  const dismissToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
 
-  // --- INIT & UTILS ---
-  const generateUUID = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16); });
-
+  // User Authentication
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      
       if (session?.user) {
         setUser(session.user);
         setUserId(session.user.id);
-        fetchCardsOnce(session.user.id);
+        fetchCards(session.user.id);
+        fetchSniperRules(session.user.id);
       } else {
         let storedUid = localStorage.getItem('cfinder_user_id');
-        if (!storedUid) { storedUid = generateUUID(); localStorage.setItem('cfinder_user_id', storedUid); }
+        if (!storedUid) {
+          storedUid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+            const r = (Math.random() * 16) | 0;
+            return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+          });
+          localStorage.setItem('cfinder_user_id', storedUid);
+        }
         setUserId(storedUid);
-        fetchCardsOnce(storedUid);
+        fetchCards(storedUid);
+        fetchSniperRules(storedUid);
       }
 
       const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-        // Only react to genuine sign-in / sign-out transitions.
-        // TOKEN_REFRESHED, INITIAL_SESSION, USER_UPDATED etc. all fire on tab
-        // focus or in the background — ignore them to prevent spurious reloads.
-        if (event === 'SIGNED_IN') {
-          if (!session?.user) return;
+        if (event === 'SIGNED_IN' && session?.user) {
           setUser(session.user);
           setUserId(session.user.id);
-          fetchCardsOnce(session.user.id);
+          fetchCards(session.user.id);
+          fetchSniperRules(session.user.id);
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
-          lastFetchedUidRef.current = null;
-          const guestId = localStorage.getItem('cfinder_user_id') || generateUUID();
+          const guestId = localStorage.getItem('cfinder_user_id') || 'guest';
           setUserId(guestId);
-          fetchCardsOnce(guestId);
+          fetchCards(guestId);
+          fetchSniperRules(guestId);
         }
       });
+
       return () => subscription.unsubscribe();
     };
 
     checkUser();
-  }, []);
+  }, [fetchCards, fetchSniperRules]);
 
-  // Fetch deals when user logs in or switches TCG, refresh every 2 minutes
+  // Fetch Deals (when logged in & on game change)
   useEffect(() => {
-    if (!user) return; // don't fetch until authenticated
-    fetchDeals();
-    const interval = setInterval(() => fetchDeals(), 2 * 60 * 1000);
+    if (!user) return;
+    const fetchDealsData = async () => {
+      setDealsLoading(true);
+      try {
+        const [tensRes, blRes, ninesRes] = await Promise.allSettled([
+          fetch(`/api/deals?type=10s&game=${tcg}`).then((r) => r.json()),
+          fetch(`/api/deals?type=blacklabel&game=${tcg}`).then((r) => r.json()),
+          fetch(`/api/deals?type=9s&game=${tcg}`).then((r) => r.json())
+        ]);
+
+        setDeals({
+          tens: tensRes.status === 'fulfilled' ? tensRes.value.data || [] : [],
+          blackLabel: blRes.status === 'fulfilled' ? blRes.value.data || [] : [],
+          nines: ninesRes.status === 'fulfilled' ? ninesRes.value.data || [] : []
+        });
+      } catch {
+        // Stale deals are kept if request fails
+      } finally {
+        setDealsLoading(false);
+      }
+    };
+
+    fetchDealsData();
+    const interval = setInterval(fetchDealsData, 2 * 60 * 1000);
     return () => clearInterval(interval);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, tcg]);
 
-  const fetchCards = async (uid: string) => {
-    if (!supabase) return;
-    const { data, error } = await supabase.from('cards').select('*').eq('user_id', uid);
-    if (data) {
-      const sorted = data.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      setMyList(sorted.filter((c: any) => c.status === 'tracked'));
-      setMyCollection(sorted.filter((c: any) => c.status === 'collection'));
-    }
-  };
-
-  const getImageUrl = (card: any) => {
-    if (!card) return "";
-    if (card.tcgplayerId) return `https://product-images.tcgplayer.com/fit-in/438x438/${card.tcgplayerId}.jpg`;
-    if (card.image) return card.image;
-    if (card.imageUrl) return card.imageUrl;
-    return ""; 
-  };
-
-  // --- ACTIONS ---
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query) return;
-    setIsLoading(true);
-    try {
-      const res = await fetch(`/api/cards?q=${encodeURIComponent(query)}&game=${tcg}`);
-      const data = await res.json();
-      setResults(data.data || []);
-    } catch (err) { setErrorMsg("Failed to fetch results"); } finally { setIsLoading(false); }
-  };
-
+  // Auth Handlers
   const handleLogin = async () => {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}`,
-      },
+      options: { redirectTo: window.location.origin }
     });
   };
 
@@ -255,659 +175,267 @@ export default function Home() {
     window.location.reload();
   };
 
-  const addToTracked = async (card: any) => {
-    const tcgId = card.tcgplayerId || card.id;
-    const tcgLink = `https://www.tcgplayer.com/product/${tcgId}`;
-    const newCard = {
-      user_id: userId,
-      card_id: String(tcgId),
-      name: card.name,
-      set_name: card.setName || card.set_name || "Unknown Set",
-      image: getImageUrl(card),
-      grade: "Raw (Ungraded)",
-      is_first_edition: false,
-      live_price: "N/A",  
-      status: 'tracked',
-      best_link: tcgLink, 
-      best_source: "",
-      game: tcg
-    };
-    const { error } = await supabase.from('cards').insert(newCard);
-    if (!error) fetchCards(userId); 
+  // Search Handler
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!query.trim()) return;
+
+    setIsSearching(true);
+    try {
+      const res = await fetch(`/api/cards?q=${encodeURIComponent(query)}&game=${tcg}`);
+      const json = await res.json();
+      setSearchResults(json.data || []);
+      if (!json.data || json.data.length === 0) {
+        showToast('No cards found for this search.', 'info');
+      }
+    } catch {
+      showToast('Failed to fetch cards. Please try again.', 'error');
+    } finally {
+      setIsSearching(false);
+    }
   };
 
-  // --- IMPORT / EXPORT HANDLERS (Restored) ---
-  const handleExport = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(myList, null, 2));
-    const a = document.createElement('a');
-    a.href = dataStr; a.download = "cfinder_list.json"; a.click(); a.remove();
+  // Add Card to Tracked
+  const handleAddTracked = async (card: SearchCardResult) => {
+    const success = await addToTracked(card, tcg);
+    if (success) {
+      showToast(`Added ${card.name} to tracked cards!`, 'success');
+    } else {
+      showToast('Failed to add card to tracked list.', 'error');
+    }
   };
-  
+
+  // Quick Snipe Modal Trigger
+  const handleOpenSniperModal = (card: any) => {
+    setSnipeModalCard(card);
+    setIsSnipeModalOpen(true);
+  };
+
+  // Move to Collection
+  const handleConfirmPurchase = async (card: CardItem, price: number) => {
+    const success = await moveToCollection(card, price);
+    if (success) {
+      showToast(`Moved ${card.name} to your collection at $${price.toFixed(2)}!`, 'success');
+      setActiveTab('collection');
+    } else {
+      showToast('Failed to move card to collection.', 'error');
+    }
+  };
+
+  // Batch Refresh
+  const onTriggerBatchRefresh = async () => {
+    try {
+      const res = await handleBatchRefresh();
+      if (res?.skipped) {
+        showToast('All cards were updated recently (within 24h).', 'info');
+      } else {
+        showToast(`Updated market prices for ${res?.count || 0} cards!`, 'success');
+      }
+    } catch {
+      showToast('Batch refresh failed. Please try again later.', 'error');
+    }
+  };
+
+  // eBay Only Refresh
+  const onTriggerEbayRefresh = async () => {
+    try {
+      const res = await handleEbayOnlyRefresh();
+      if (res?.skipped) {
+        showToast('All cards were eBay-checked within the last hour.', 'info');
+      } else {
+        showToast(`Checked live eBay prices for ${res?.count || 0} cards!`, 'success');
+      }
+    } catch {
+      showToast('eBay price check failed. Check your connection.', 'error');
+    }
+  };
+
+  // Import / Export
+  const handleExport = () => {
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(myList, null, 2));
+    const a = document.createElement('a');
+    a.href = dataStr;
+    a.download = 'cfinder_tracked_cards.json';
+    a.click();
+    a.remove();
+    showToast('Exported tracked cards JSON!', 'success');
+  };
+
   const handleImportClick = () => fileInputRef.current?.click();
-  
+
   const handleFileChange = (e: any) => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async (ev: any) => {
-        try {
-            const list = JSON.parse(ev.target.result);
-            for (const item of list) await addToTracked(item);
-            alert("Imported!");
-        } catch (err) { alert("Invalid JSON"); }
+      try {
+        const list = JSON.parse(ev.target.result);
+        if (Array.isArray(list)) {
+          for (const item of list) {
+            await addToTracked(item, tcg);
+          }
+          showToast(`Imported ${list.length} cards!`, 'success');
+        }
+      } catch {
+        showToast('Invalid JSON file.', 'error');
+      }
     };
     reader.readAsText(file);
     e.target.value = '';
   };
 
-  // --- PURCHASE MODAL HANDLERS ---
-  const openPurchaseModal = (card: any) => {
-      setPurchaseModal({ isOpen: true, card: card, price: '' });
-  };
-
-  const confirmPurchase = async () => {
-    if (!purchaseModal.card || !purchaseModal.price) return;
-    const price = parseFloat(purchaseModal.price);
-    if (isNaN(price)) { alert("Invalid Price"); return; }
-
-    const { error } = await supabase
-      .from('cards')
-      .update({ status: 'collection', purchase_price: price })
-      .eq('id', purchaseModal.card.id); 
-
-    if (error) alert("Move failed");
-    else {
-      fetchCards(userId);
-      setActiveTab('collection');
-      setPurchaseModal({ isOpen: false, card: null, price: '' });
-    }
-  };
-
-  const deleteCard = async (cardDbId: number) => {
-    if (!confirm("Delete card?")) return;
-    await supabase.from('cards').delete().eq('id', cardDbId);
-    fetchCards(userId);
-  };
-
-  const updateCardDetails = async (cardDbId: number, field: string, value: any) => {
-    setMyList(prev => prev.map(c => c.id === cardDbId ? { ...c, [field]: value } : c));
-    await supabase.from('cards').update({ [field]: value }).eq('id', cardDbId);
-  };
-
-  // --- BATCH REFRESH ---
-  const handleBatchRefresh = async () => {
-    if (myList.length === 0 && myCollection.length === 0) return;
-    setIsLoading(true);
-    
-    const allCards = [...myList, ...myCollection];
-    
-    // Filter out cards that were updated within the last 24 hours
-    const now = new Date().getTime();
-    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
-    
-    const cardsToUpdate = allCards.filter(c => {
-      if (!c.last_price_update) return true; // Never updated, include it
-      const lastUpdate = new Date(c.last_price_update).getTime();
-      return (now - lastUpdate) > TWENTY_FOUR_HOURS; // Only update if older than 24 hours
-    });
-    
-    if (cardsToUpdate.length === 0) {
-      alert("All cards were updated within the last 24 hours. Please try again later.");
-      setIsLoading(false);
-      return;
-    }
-    
-    console.log(`🔄 Updating ${cardsToUpdate.length} of ${allCards.length} cards (skipping recently updated cards)`);
-    
-    const batchPayload = cardsToUpdate.map(c => ({ 
-      id: c.card_id, 
-      name: c.name, 
-      set: (c.set_name && !c.set_name.toLowerCase().includes("unknown")) ? c.set_name : "", 
-      grade: c.grade, 
-      isFirstEdition: c.is_first_edition,
-      game: c.game || 'pokemon'
-    }));
-
-    try {
-      const responseJson = await withRetry(async () => {
-        const r = await fetch(`/api/cards?t=${new Date().getTime()}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cards: batchPayload }),
-          cache: 'no-store'
-        });
-        const json = await r.json();
-        if (!r.ok) throw new Error("Update failed");
-        return json;
-      });
-
-      console.log("📦 API Response:", responseJson.data);
-
-      for (const updated of responseJson.data) {
-        console.log(`🔄 Processing card ID: ${updated.id}`, {
-          bestSource: updated.bestSource,
-          tcgPrice: updated.tcgPrice,
-          ebayPrice: updated.ebayPrice
-        });
-
-        const currentCard = cardsToUpdate.find(c => c.card_id === updated.id);
-        if (!currentCard) {
-          console.log(`⚠️ Card ${updated.id} not found in cardsToUpdate list`);
-          continue;
-        }
-        
-        const isRaw = !currentCard.grade || currentCard.grade === "Raw (Ungraded)";
-
-        const updatePayload: any = { 
-            ebay_price: updated.ebayPrice,
-            ebay_link: updated.ebayLink,
-            last_price_update: new Date().toISOString()
-        };
-
-        // Determine which price to use based on bestSource
-        if (updated.bestSource === 'TCGPlayer' && updated.tcgPrice) {
-             updatePayload.live_price = updated.tcgPrice;
-             updatePayload.best_link = updated.tcgLink || `https://www.tcgplayer.com/product/${updated.id}`;
-             updatePayload.best_source = "TCGPlayer";
-        } else if (updated.bestSource === 'JustTCG' && updated.tcgPrice) {
-             updatePayload.live_price = updated.tcgPrice;
-             updatePayload.best_link = updated.tcgLink;
-             updatePayload.best_source = "JustTCG";
-        } else if (updated.bestSource === 'eBay' && updated.ebayPrice) {
-             updatePayload.live_price = updated.ebayPrice;
-             updatePayload.best_link = updated.ebayLink;
-             updatePayload.best_source = "eBay";
-        } else {
-             // No price available
-             updatePayload.live_price = null;
-             updatePayload.best_source = "";
-        }
-
-        console.log(`💾 Updating database with:`, updatePayload);
-
-        const { error } = await supabase.from('cards').update(updatePayload).eq('card_id', updated.id).eq('user_id', userId);
-        
-        if (error) {
-          console.error(`❌ Database update failed for card ${updated.id}:`, error);
-        } else {
-          console.log(`✅ Successfully updated card ${updated.id}`);
-        }
-      }
-      fetchCards(userId);
-    } catch (error: any) {
-      console.error("Batch update failed:", error);
-      setServerError("We're having server issues. Please come back later.");
-    } finally { setIsLoading(false); }
-  };
-
-  // --- EBAY ONLY REFRESH ---
-  const handleEbayOnlyRefresh = async () => {
-    if (myList.length === 0 && myCollection.length === 0) return;
-    setIsLoading(true);
-    
-    const allCards = [...myList, ...myCollection];
-    
-    // Filter out cards that were eBay-checked within the last 1 hour
-    const now = new Date().getTime();
-    const ONE_HOUR = 60 * 60 * 1000;
-    
-    const cardsToCheck = allCards.filter(c => {
-      if (!c.last_ebay_check) return true; // Never checked, include it
-      const lastCheck = new Date(c.last_ebay_check).getTime();
-      return (now - lastCheck) > ONE_HOUR; // Only check if older than 1 hour
-    });
-    
-    if (cardsToCheck.length === 0) {
-      alert("All cards were eBay-checked within the last hour. Please try again later.");
-      setIsLoading(false);
-      return;
-    }
-    
-    console.log(`🔍 eBay-Only: Checking ${cardsToCheck.length} of ${allCards.length} cards`);
-    
-    const batchPayload = cardsToCheck.map(c => ({ 
-      id: c.card_id, 
-      name: c.name, 
-      set: (c.set_name && !c.set_name.toLowerCase().includes("unknown")) ? c.set_name : "", 
-      grade: c.grade, 
-      isFirstEdition: c.is_first_edition,
-      game: c.game || 'pokemon',
-      ebayOnly: true // Flag to tell backend to only check eBay
-    }));
-
-    try {
-      const responseJson = await withRetry(async () => {
-        const r = await fetch(`/api/cards?t=${new Date().getTime()}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cards: batchPayload }),
-          cache: 'no-store'
-        });
-        const json = await r.json();
-        if (!r.ok) throw new Error("eBay check failed");
-        return json;
-      });
-
-      console.log("📦 eBay-Only Response:", responseJson.data);
-
-      for (const updated of responseJson.data) {
-        console.log(`🔄 eBay check for card ID: ${updated.id}`, {
-          ebayPrice: updated.ebayPrice
-        });
-
-        const currentCard = cardsToCheck.find(c => c.card_id === updated.id);
-        if (!currentCard) {
-          console.log(`⚠️ Card ${updated.id} not found in cardsToCheck list`);
-          continue;
-        }
-
-        const updatePayload: any = { 
-            ebay_price: updated.ebayPrice,
-            ebay_link: updated.ebayLink,
-            last_ebay_check: new Date().toISOString()
-        };
-
-        // Update best source if eBay is now cheaper than current live price
-        if (updated.ebayPrice && currentCard.live_price) {
-          const ebayPrice = parseFloat(updated.ebayPrice);
-          const currentPrice = parseFloat(currentCard.live_price);
-          
-          if (ebayPrice < currentPrice) {
-            updatePayload.live_price = updated.ebayPrice;
-            updatePayload.best_link = updated.ebayLink;
-            updatePayload.best_source = "eBay";
-            console.log(`💰 eBay is now cheaper! ${ebayPrice} < ${currentPrice}`);
-          }
-        }
-
-        console.log(`💾 Updating eBay data:`, updatePayload);
-
-        const { error } = await supabase.from('cards').update(updatePayload).eq('card_id', updated.id).eq('user_id', userId);
-        
-        if (error) {
-          console.error(`❌ Database update failed for card ${updated.id}:`, error);
-        } else {
-          console.log(`✅ Successfully updated eBay data for card ${updated.id}`);
-        }
-      }
-      fetchCards(userId);
-    } catch (error: any) {
-      console.error("eBay check failed:", error);
-      setServerError("We're having server issues. Please come back later.");
-    } finally { setIsLoading(false); }
-  };
-
-  // --- DEALS FETCH ---
-  const fetchDeals = async () => {
-    setDealsLoading(true);
-    setServerError(null);
-    try {
-      // Stagger requests by 400 ms each so concurrent users don't all hit eBay simultaneously
-      const tensData = await withRetry(async () => {
-        const r = await fetch(`/api/deals?type=10s&game=${tcg}`);
-        if (!r.ok) throw new Error('deals 10s failed');
-        return r.json();
-      });
-      setDeals(prev => ({ ...prev, tens: tensData.data || [] }));
-
-      await new Promise(r => setTimeout(r, 800));
-      const blData = await withRetry(async () => {
-        const r = await fetch(`/api/deals?type=blacklabel&game=${tcg}`);
-        if (!r.ok) throw new Error('deals blacklabel failed');
-        return r.json();
-      });
-      setDeals(prev => ({ ...prev, blackLabel: blData.data || [] }));
-
-      await new Promise(r => setTimeout(r, 800));
-      const ninesData = await withRetry(async () => {
-        const r = await fetch(`/api/deals?type=9s&game=${tcg}`);
-        if (!r.ok) throw new Error('deals 9s failed');
-        return r.json();
-      });
-      setDeals(prev => ({ ...prev, nines: ninesData.data || [] }));
-    } catch (err) {
-      console.error('Failed to fetch deals after retry:', err);
-      setServerError("We're having server issues. Please come back later.");
-    } finally {
-      setDealsLoading(false);
-    }
-  };
-
-  // --- MATH ---
-  const filteredList = myList.filter(c => (c.game || 'pokemon') === tcg);
-  const filteredCollection = myCollection.filter(c => (c.game || 'pokemon') === tcg);
-
-  const totalWatchlistValue = filteredList.reduce((acc, c) => acc + (parseFloat(c.live_price) || 0), 0);
-  const totalPortfolioCost = filteredCollection.reduce((acc, c) => acc + (c.purchase_price || 0), 0);
-  const totalPortfolioValue = filteredCollection.reduce((acc, c) => acc + (parseFloat(c.live_price) || 0), 0);
-  const totalProfit = totalPortfolioValue - totalPortfolioCost;
+  // Filtered lists for stats
+  const filteredCollection = myCollection.filter((c) => (c.game || 'pokemon') === tcg);
+  const totalCost = filteredCollection.reduce((acc, c) => acc + (c.purchase_price || 0), 0);
+  const totalValue = filteredCollection.reduce((acc, c) => acc + (parseFloat(c.live_price || '0') || 0), 0);
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans text-gray-900 flex flex-col">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] text-gray-900 dark:text-gray-100 font-sans flex flex-col transition-colors duration-200">
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
+      {/* Hidden File Input for Import */}
+      <input
+        type="file"
+        accept=".json"
+        ref={fileInputRef}
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
       {/* HEADER */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-blue-700 tracking-tight">CFinder</h1>
-          
-          <div className="flex items-center gap-4">
-             {user ? (
-                <div className="flex items-center gap-3">
-                    <span className="text-xs font-medium text-gray-500 hidden sm:inline">Signed in as {user.email}</span>
-                    <button onClick={handleLogout} className="text-sm text-red-600 font-medium hover:text-red-700 transition">Sign Out</button>
-                </div>
-             ) : (
-                <button onClick={handleLogin} className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition shadow-sm">
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-                    Sign in with Google
-                </button>
-             )}
-          </div>
-        </div>
+      <Header
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        trackedCount={myList.filter((c) => (c.game || 'pokemon') === tcg).length}
+        collectionCount={filteredCollection.length}
+        sniperCount={sniperRules.length}
+        user={user}
+        onLogin={handleLogin}
+        onLogout={handleLogout}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        themeMounted={themeMounted}
+      />
 
-        {/* NAVIGATION TABS */}
-        <div className="max-w-7xl mx-auto px-4 pb-0 flex justify-center gap-6 overflow-x-auto border-t border-gray-100 mt-2 pt-2">
-            <button onClick={() => setActiveTab('search')} className={`pb-3 text-sm font-medium transition border-b-2 ${activeTab === 'search' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Search Cards</button>
-            <button onClick={() => setActiveTab('list')} className={`pb-3 text-sm font-medium transition border-b-2 ${activeTab === 'list' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>My List ({myList.length})</button>
-            <button onClick={() => setActiveTab('collection')} className={`pb-3 text-sm font-medium transition border-b-2 ${activeTab === 'collection' ? 'border-green-600 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Collection ({myCollection.length})</button>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto p-6 flex-1 w-full">
+      {/* MAIN CONTAINER */}
+      <main className="max-w-7xl mx-auto p-4 sm:p-6 flex-1 w-full space-y-6">
         {serverError && (
-          <div className="mb-4 flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm font-medium">
-            <span className="text-lg">⚠️</span>
-            <span>{serverError}</span>
-            <button onClick={() => setServerError(null)} className="ml-auto text-red-400 hover:text-red-600 transition" aria-label="Dismiss">✕</button>
+          <div className="flex items-center justify-between gap-3 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 rounded-2xl px-5 py-3 text-xs font-semibold">
+            <span>?? {serverError}</span>
+            <button
+              onClick={() => setServerError(null)}
+              className="text-rose-400 hover:text-rose-600 dark:hover:text-rose-200"
+            >
+              ?
+            </button>
           </div>
         )}
+
+        {/* TAB 1: SEARCH CARDS & BEST DEALS */}
         {activeTab === 'search' && (
           <div className="space-y-6">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-sm font-medium text-gray-600">Searching in:</span>
-                <TcgToggle value={tcg} onChange={setTcg} />
-              </div>
-              <form onSubmit={handleSearch} className="flex gap-4">
-                <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={tcg === 'pokemon' ? 'Search Pokémon cards...' : 'Search One Piece cards...'} className="flex-1 p-3 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"/>
-                <button type="submit" disabled={isLoading} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-medium disabled:opacity-50 transition">{isLoading ? '...' : 'Search'}</button>
-              </form>
-            </div>
+            <SearchBar
+              query={query}
+              setQuery={setQuery}
+              game={tcg}
+              setGame={setTcg}
+              onSearch={handleSearch}
+              isLoading={isSearching}
+            />
 
-            {/* SEARCH RESULTS — shown directly below search bar */}
-            {results.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {results.map((card, i) => (
-                  <div key={card.id || i} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex gap-4 hover:shadow-md transition">
-                    <img src={getImageUrl(card)} alt={card.name} className="w-20 h-28 object-contain" />
-                    <div className="flex-1 flex flex-col justify-center">
-                      <h3 className="font-bold text-gray-800">{card.name}</h3>
-                      <p className="text-sm text-gray-500 mb-3">{card.setName || card.set_name || "Unknown Set"}</p>
-                      <button onClick={() => addToTracked(card)} className="bg-gray-900 text-white text-sm py-2 px-4 rounded-lg hover:bg-gray-800 transition self-start">Add to List</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+            {/* SEARCH RESULTS */}
+            {searchResults.length > 0 && (
+              <SearchResults
+                results={searchResults}
+                onAddToList={handleAddTracked}
+                onOpenSniper={handleOpenSniperModal}
+              />
             )}
 
-            {/* BEST DEALS SECTION */}
-            {user ? (
-              <div className="space-y-5">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-gray-800">🔥 Best Deals Right Now</h2>
-                  {dealsLoading && <span className="text-xs text-gray-400 animate-pulse">Refreshing...</span>}
-                </div>
-
-                {/* Black Label / Pristine */}
-                <div>
-                  <p className="text-xs font-bold text-white bg-gray-900 border border-gray-700 rounded-lg px-3 py-1.5 inline-block mb-2">⚫ CGC / BGS Black Label &amp; Pristine 10s</p>
-                  <DealRow items={deals.blackLabel} isLoading={dealsLoading} />
-                </div>
-
-                {/* 10s */}
-                <div>
-                  <p className="text-xs font-bold text-yellow-800 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-1.5 inline-block mb-2">🏆 PSA / CGC / BGS / TAG 10s</p>
-                  <DealRow items={deals.tens} isLoading={dealsLoading} />
-                </div>
-
-                {/* 9s */}
-                <div>
-                  <p className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 inline-block mb-2">🥈 PSA / CGC / BGS / TAG 9s</p>
-                  <DealRow items={deals.nines} isLoading={dealsLoading} />
-                </div>
-              </div>
-            ) : (
-              /* Static locked placeholder — nothing is rendered or fetched */
-              <div className="min-h-[520px] rounded-xl bg-gray-100 flex flex-col items-center justify-center">
-                {/* Sign-in card */}
-                <div className="bg-white border border-gray-200 rounded-2xl shadow-lg px-10 py-8 flex flex-col items-center gap-4 max-w-sm w-full text-center">
-                  <div className="text-3xl">🔒</div>
-                  <h3 className="text-lg font-bold text-gray-900">Sign in to view deals</h3>
-                  <p className="text-sm text-gray-500">Create a free account to see live eBay auctions ending soon.</p>
-                  <button
-                    onClick={handleLogin}
-                    className="flex items-center gap-2 bg-gray-900 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-800 transition shadow-sm w-full justify-center"
-                  >
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-                    Sign in with Google
-                  </button>
-                </div>
-              </div>
-            )}
+            {/* BEST DEALS CAROUSELS */}
+            <DealSection
+              user={user}
+              onLogin={handleLogin}
+              deals={deals}
+              isLoading={dealsLoading}
+            />
           </div>
         )}
 
+        {/* TAB 2: TRACKED CARDS TABLE */}
         {activeTab === 'list' && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-              <div className="flex items-center gap-4">
-                <h2 className="text-xl font-bold text-gray-800">Tracked Cards</h2>
-                <TcgToggle value={tcg} onChange={setTcg} />
-              </div>
-              <div className="flex gap-2">
-                 {/* HIDDEN INPUT FOR IMPORT */}
-                 <input type="file" accept=".json" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
-                 
-                 {/* RESTORED BUTTONS */}
-                <button onClick={handleImportClick} className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition">Import</button>
-                <button onClick={handleExport} className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition">Export</button>
-                
-                <button onClick={handleEbayOnlyRefresh} disabled={isLoading} className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 transition">
-                  {isLoading ? 'Checking...' : 'Check Ebay Only'}
-                </button>
-                <button onClick={handleBatchRefresh} disabled={isLoading} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition">
-                   {isLoading ? 'Updating...' : 'Update Prices'}
-                </button>
-              </div>
-            </div>
+          <CardTable
+            cards={myList}
+            tcg={tcg}
+            setTcg={setTcg}
+            onGradeChange={(id, grade) => updateCardDetails(id, 'grade', grade)}
+            onBuyClick={(card) => setPurchaseModalCard(card)}
+            onSnipeClick={handleOpenSniperModal}
+            onDeleteClick={deleteCard}
+            onBatchRefresh={onTriggerBatchRefresh}
+            onEbayOnlyRefresh={onTriggerEbayRefresh}
+            onImportClick={handleImportClick}
+            onExportClick={handleExport}
+            isLoading={isCardsLoading}
+          />
+        )}
 
-            <table className="w-full text-left">
-              <thead className="bg-gray-50 text-gray-500 text-xs uppercase font-semibold border-b border-gray-100">
-                <tr><th className="p-4">Card</th><th className="p-4">Details</th><th className="p-4">Grade</th><th className="p-4">Market / Best Price</th><th className="p-4">Action</th><th className="p-4 text-right"></th></tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filteredList.map((item, i) => (
-                  <tr key={item.id || i} className="hover:bg-gray-50 transition">
-                    <td className="p-4 w-20"><img src={item.image} className="w-12 h-16 object-contain rounded-sm border" /></td>
-                    <td className="p-4">
-                        <p className="font-bold text-gray-900">{item.name}</p>
-                        <p className="text-xs text-blue-600 font-bold bg-blue-50 inline-block px-1.5 py-0.5 rounded mt-1">{item.set_name || "Unknown Set"}</p>
-                    </td>
-                    <td className="p-4">
-                       <select value={item.grade} onChange={(e) => updateCardDetails(item.id, 'grade', e.target.value)} className="text-sm border-gray-200 border rounded p-1.5 outline-none focus:border-blue-500 block w-full max-w-[120px]">
-                           <option>Raw (Ungraded)</option><option>PSA 10</option><option>PSA 9</option><option>PSA 8</option><option>CGC 10</option><option>BGS 10</option>
-                       </select>
-                    </td>
-                    <td className="p-4">
-                        <div className="font-bold text-blue-600 text-lg flex items-center gap-2">
-                            {item.live_price && item.live_price !== "N/A" ? `$${item.live_price}` : <span className="text-gray-400 text-sm">$N/A</span>}
-                            {item.best_source && (
-                                <a href={item.best_link} target="_blank" rel="noopener noreferrer" className={`text-[10px] text-white px-2 py-0.5 rounded uppercase font-bold tracking-wider ${item.best_source === 'eBay' ? 'bg-blue-500' : 'bg-green-500'}`}>
-                                    {item.best_source === 'eBay' ? 'eBay' : item.best_source === 'JustTCG' ? 'JustTCG' : 'TCG'}
-                                </a>
-                            )}
-                        </div>
-                        {/* OPPOSITE LISTING */}
-                        {item.best_source === 'TCGPlayer' && item.ebay_price && (
-                             <div className="mt-1 flex items-center gap-2">
-                                <span className="text-xs text-gray-400 font-medium">eBay: ${item.ebay_price}</span>
-                                <a href={item.ebay_link} target="_blank" rel="noopener noreferrer" className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-[10px] px-2 py-0.5 rounded border border-gray-300 transition">
-                                    View
-                                </a>
-                             </div>
-                        )}
-                    </td>
-                    <td className="p-4"><button onClick={() => openPurchaseModal(item)} className="bg-gray-800 hover:bg-gray-900 text-white text-xs px-3 py-1.5 rounded transition">I Bought This</button></td>
-                    <td className="p-4 text-right"><button onClick={() => deleteCard(item.id)} className="text-gray-400 hover:text-red-500 p-2">✕</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            
-            {filteredList.length > 0 && (
-              <div className="bg-gray-50 border-t border-gray-200 p-4 flex justify-end items-center gap-4">
-                  <span className="text-gray-500 font-medium">Total Portfolio Value:</span>
-                  <span className="text-2xl font-bold text-green-600">${totalWatchlistValue.toFixed(2)}</span>
-              </div>
-            )}
+        {/* TAB 3: MY COLLECTION & PORTFOLIO */}
+        {activeTab === 'collection' && (
+          <div className="space-y-6">
+            <PortfolioStats
+              totalCost={totalCost}
+              totalValue={totalValue}
+              itemCount={filteredCollection.length}
+            />
+
+            <CollectionTable
+              collection={myCollection}
+              tcg={tcg}
+              setTcg={setTcg}
+              onDeleteClick={deleteCard}
+              onBatchRefresh={onTriggerBatchRefresh}
+              onEbayOnlyRefresh={onTriggerEbayRefresh}
+              isLoading={isCardsLoading}
+            />
           </div>
         )}
 
-        {/* COLLECTION TAB (Same implementation as before) */}
-        {activeTab === 'collection' && (
-           <div className="space-y-6">
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm"><p className="text-gray-500 text-sm font-medium">Total Cost</p><p className="text-2xl font-bold text-gray-900">${totalPortfolioCost.toFixed(2)}</p></div>
-                <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm"><p className="text-gray-500 text-sm font-medium">Current Value</p><p className="text-2xl font-bold text-blue-600">${totalPortfolioValue.toFixed(2)}</p></div>
-                <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm"><p className="text-gray-500 text-sm font-medium">Total Profit</p><p className={`text-2xl font-bold ${totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{totalProfit >= 0 ? '+' : ''}${totalProfit.toFixed(2)}</p></div>
-             </div>
-             
-             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-               <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                  <div className="flex items-center gap-4">
-                    <h2 className="text-xl font-bold text-gray-800">My Collection</h2>
-                    <TcgToggle value={tcg} onChange={setTcg} />
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={handleEbayOnlyRefresh} disabled={isLoading} className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 transition">
-                      {isLoading ? 'Checking...' : 'Check Ebay Only'}
-                    </button>
-                    <button onClick={handleBatchRefresh} disabled={isLoading} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition">
-                      {isLoading ? 'Updating...' : 'Update Values'}
-                    </button>
-                  </div>
-               </div>
-               <table className="w-full text-left">
-                  <thead className="bg-gray-50 text-gray-500 text-xs uppercase font-semibold border-b border-gray-100">
-                    <tr><th className="p-4">Card</th><th className="p-4">Name</th><th className="p-4">Paid</th><th className="p-4">Value</th><th className="p-4">P/L</th><th className="p-4 text-right">Del</th></tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {filteredCollection.map((item, i) => {
-                       const profit = (parseFloat(item.live_price) || 0) - (item.purchase_price || 0);
-                       return (
-                        <tr key={item.id || i} className="hover:bg-gray-50 transition">
-                          <td className="p-4"><img src={item.image} className="w-12 h-16 object-contain rounded-sm border" /></td>
-                          <td className="p-4"><p className="font-bold text-gray-900">{item.name}</p><p className="text-xs text-blue-600 font-bold bg-blue-50 inline-block px-1.5 py-0.5 rounded mt-1">{item.set_name}</p></td>
-                          <td className="p-4 font-medium text-gray-600">${item.purchase_price?.toFixed(2)}</td>
-                          <td className="p-4 font-bold text-blue-600">{item.live_price !== "N/A" ? `$${item.live_price}` : "N/A"}</td>
-                          <td className="p-4"><span className={`font-bold px-2 py-1 rounded text-xs ${profit >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{profit >= 0 ? '+' : ''}${profit.toFixed(2)}</span></td>
-                          <td className="p-4 text-right"><button onClick={() => deleteCard(item.id)} className="text-gray-400 hover:text-red-500 p-2">✕</button></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-               </table>
-             </div>
-           </div>
+        {/* TAB 4: DISCORD BOT SNIPER */}
+        {activeTab === 'sniper' && (
+          <SniperDashboard
+            rules={sniperRules}
+            onOpenCreateModal={() => {
+              setSnipeModalCard(null);
+              setIsSnipeModalOpen(true);
+            }}
+            onDeleteRule={deleteSniperRule}
+            onShowToast={showToast}
+          />
         )}
-
       </main>
 
-      {/* QUICK POPUP MODAL */}
-      {purchaseModal.isOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 animate-fade-in-up">
-                <h3 className="text-lg font-bold text-gray-900 mb-2">Add to Collection</h3>
-                <p className="text-sm text-gray-500 mb-4">How much did you pay for <span className="font-semibold text-blue-600">{purchaseModal.card?.name}</span>?</p>
-                <div className="relative mb-6">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">$</span>
-                    <input 
-                        type="number" 
-                        autoFocus
-                        value={purchaseModal.price}
-                        onChange={(e) => setPurchaseModal({...purchaseModal, price: e.target.value})}
-                        className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-lg text-lg outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                        placeholder="0.00"
-                    />
-                </div>
-                <div className="flex gap-3">
-                    <button onClick={() => setPurchaseModal({ isOpen: false, card: null, price: '' })} className="flex-1 py-3 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition">Cancel</button>
-                    <button onClick={confirmPurchase} className="flex-1 py-3 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition">Confirm</button>
-                </div>
-            </div>
-        </div>
-      )}
+      {/* FOOTER */}
+      <Footer />
 
-      <footer className="mt-auto bg-white border-t border-gray-200 text-gray-700">
-        {/* Top bar */}
-        <div className="max-w-5xl mx-auto px-6 py-10 grid grid-cols-1 md:grid-cols-3 gap-8">
+      {/* MODAL 1: PURCHASE / MOVE TO COLLECTION */}
+      <PurchaseModal
+        isOpen={!!purchaseModalCard}
+        card={purchaseModalCard}
+        onClose={() => setPurchaseModalCard(null)}
+        onConfirm={handleConfirmPurchase}
+      />
 
-          {/* Brand */}
-          <div className="flex flex-col gap-2">
-            <span className="text-xl font-bold tracking-tight text-gray-900">CFinder</span>
-            <p className="text-gray-500 text-sm leading-relaxed">
-              Live Pokémon card arbitrage — track graded card market prices and catch undervalued eBay auctions before they close.
-            </p>
-          </div>
-
-          {/* Share an Idea */}
-          <div className="flex flex-col gap-2">
-            <span className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">Got an Idea?</span>
-            <p className="text-sm text-gray-500">Have a feature request or suggestion? We&apos;d love to hear it.</p>
-            <a
-              href="mailto:banditsalandit123@gmail.com"
-              className="inline-flex items-center gap-2 mt-1 text-sm font-medium text-blue-600 hover:text-blue-800 transition"
-            >
-              💡 Share an Idea
-            </a>
-          </div>
-
-          {/* Creator */}
-          <div className="flex flex-col gap-3">
-            <span className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">The Builder</span>
-            <p className="text-sm text-gray-500">
-              Made by <a href="https://pabloti.dev" target="_blank" rel="noopener noreferrer" className="text-gray-900 font-semibold hover:text-blue-600 transition">Pablo</a>. I build tools that help me in my daily life.
-            </p>
-            <div className="flex gap-3 mt-1">
-              {/* LinkedIn */}
-              <a
-                href="https://www.linkedin.com/in/pablotiradohidalgo"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition"
-              >
-                <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M20.447 20.452H16.9v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a1.98 1.98 0 0 1-1.977-1.98 1.98 1.98 0 1 1 1.977 1.98zm1.709 13.019H3.626V9h3.42v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-                </svg>
-                Follow on LinkedIn
-              </a>
-              {/* Personal site */}
-              <a
-                href="https://pabloti.dev"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 border border-gray-200 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg transition"
-              >
-                🌐 Portfolio
-              </a>
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom bar */}
-        <div className="border-t border-gray-100 py-4 px-6 text-center text-gray-400 text-xs">
-          © {new Date().getFullYear()} CFinder by Pablo
-        </div>
-      </footer>
+      {/* MODAL 2: CONFIGURE SNIPER */}
+      <SniperRuleModal
+        isOpen={isSnipeModalOpen}
+        onClose={() => setIsSnipeModalOpen(false)}
+        card={snipeModalCard}
+        userId={userId}
+        onRuleCreated={addSniperRule}
+        onShowToast={showToast}
+      />
     </div>
   );
 }

@@ -14,7 +14,7 @@ const resultCache = new Map<string, { value: any; expiresAt: number }>();
 // ---- In-flight deduplication ----
 const inFlight = new Map<string, Promise<any>>();
 
-async function getEbayToken() {
+export async function getEbayToken() {
   if (cachedToken && Date.now() < tokenExpiresAt) return cachedToken;
 
   const auth = Buffer.from(`${process.env.EBAY_APP_ID}:${process.env.EBAY_CERT_ID}`).toString('base64');
@@ -58,7 +58,7 @@ async function _searchEbay(cardName: string, set: string, grade: string, isFirst
   const exclusions = "-PSA -CGC -BGS -graded -slab -keychain";
 
   // BUILD QUERY LIST: We will try these in order
-  let queriesToTry: { query: string, isLightlyPlayed: boolean }[] = [];
+  const queriesToTry: { query: string, isLightlyPlayed: boolean }[] = [];
 
   if (grade === "Raw (Ungraded)") {
     // Build base query with card name

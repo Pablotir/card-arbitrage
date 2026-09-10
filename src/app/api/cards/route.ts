@@ -1,89 +1,83 @@
 import { NextResponse } from 'next/server';
 import { searchEbay } from '../utils/ebay'; 
+import { searchTcgdexCards } from '@/lib/tcgdex';
 
 export async function POST(request: Request) {
   try {
     const { cards } = await request.json(); 
     const API_KEY = process.env.JUSTTCG_API_KEY;
 
-    if (!API_KEY) return NextResponse.json({ error: "Missing JustTCG Key" }, { status: 500 });
+    if (!Array.isArray(cards) || cards.length === 0) {
+      return NextResponse.json({ data: [] });
+    }
 
-    // Check if this is an eBay-only request
-    const isEbayOnly = cards.length > 0 && cards[0].ebayOnly === true;
-    // Determine the game from the first card (default to pokemon)
+    const isEbayOnly = cards[0].ebayOnly === true;
     const game: string = cards[0]?.game || 'pokemon';
-    console.log(`🎯 Request mode: ${isEbayOnly ? 'eBay Only' : 'Full Update'} | Game: ${game}`);
+    console.log(`?? Request mode: ${isEbayOnly ? 'eBay Only' : 'Full Update'} | Game: ${game}`);
 
     let tcgData: any = { data: [] }; 
 
-    // Skip TCGPlayer lookups if eBay-only mode
-    if (!isEbayOnly) {
+    // Skip TCG lookups if eBay-only mode
+    if (!isEbayOnly && API_KEY) {
       // 1. Batch Fetch - Get all cards by ID first
       try {
         const validIds = cards.filter((c: any) => c.id && String(c.id).length > 4);
         if (validIds.length > 0) {
-            const batchPayload = { items: validIds.map((c: any) => ({ cardId: c.id })) };
-            const tcgResponse = await fetch('https://api.justtcg.com/v1/cards/batch', {
-              method: 'POST',
-              headers: { 'x-api-key': API_KEY, 'Content-Type': 'application/json' },
-              body: JSON.stringify(batchPayload),
-            });
-            if (tcgResponse.ok) tcgData = await tcgResponse.json();
+          const batchPayload = { items: validIds.map((c: any) => ({ cardId: c.id })) };
+          const tcgResponse = await fetch('https://api.justtcg.com/v1/cards/batch', {
+            method: 'POST',
+            headers: { 'x-api-key': API_KEY, 'Content-Type': 'application/json' },
+            body: JSON.stringify(batchPayload),
+          });
+          if (tcgResponse.ok) tcgData = await tcgResponse.json();
         }
       } catch (e) { console.error("Batch Error:", e); }
 
-      // 2. Batch fetch missing cards by name (all in one call)
+      // 2. Batch fetch missing cards by name
       const missingCards = cards.filter((c: any) => {
         const found = tcgData.data?.find((d: any) => String(d.id) === String(c.id));
         return !found && c.grade === "Raw (Ungraded)";
       });
 
-    if (missingCards.length > 0) {
-      try {
-        // Collect all unique card names
-        const uniqueNames: string[] = [...new Set(missingCards.map((c: any) => String(c.name)))] as string[];
-        
-        // Search for all missing cards in one batch (JustTCG allows multiple searches)
-        const searchPromises = uniqueNames.map(async (name: string) => {
-          const cleanQuery = encodeURIComponent(name);
-          const justTcgGame = game === 'onepiece' ? 'one-piece-card-game' : game;
-          const searchRes = await fetch(`https://api.justtcg.com/v1/cards?q=${cleanQuery}&game=${justTcgGame}&limit=20`, { 
-            headers: { 'x-api-key': API_KEY } 
+      if (missingCards.length > 0) {
+        try {
+          const uniqueNames: string[] = [...new Set(missingCards.map((c: any) => String(c.name)))] as string[];
+          const searchPromises = uniqueNames.map(async (name: string) => {
+            const cleanQuery = encodeURIComponent(name);
+            const justTcgGame = game === 'onepiece' ? 'one-piece-card-game' : game;
+            const searchRes = await fetch(`https://api.justtcg.com/v1/cards?q=${cleanQuery}&game=${justTcgGame}&limit=20`, { 
+              headers: { 'x-api-key': API_KEY } 
+            });
+            if (searchRes.ok) {
+              const searchData = await searchRes.json();
+              return { name, results: searchData.data || [] };
+            }
+            return { name, results: [] };
           });
-          if (searchRes.ok) {
-            const searchData = await searchRes.json();
-            return { name, results: searchData.data || [] };
-          }
-          return { name, results: [] };
-        });
 
-        const allSearchResults = await Promise.all(searchPromises);
-        
-        // Add search results to tcgData
-        for (const search of allSearchResults) {
-          if (search.results.length > 0) {
-            tcgData.data.push(...search.results);
+          const allSearchResults = await Promise.all(searchPromises);
+          for (const search of allSearchResults) {
+            if (search.results.length > 0) {
+              tcgData.data.push(...search.results);
+            }
           }
-        }
-      } catch (err) { console.error("Batch search error:", err); }
+        } catch (err) { console.error("Batch search error:", err); }
+      }
     }
-    } // Close the if (!isEbayOnly) block
 
-    // 3. Process Cards (sequential to stay within eBay rate limits)
+    // Process Cards
     const results: any[] = [];
     for (const userCard of cards) {
       let tcgPrice = Infinity;
       let tcgLink = "";
       let ebayPrice = Infinity;
       let ebayLink = "";
-      let bestLink = "";
       let bestSource = "Checking...";
 
-      // --- A. JustTCG Lookup --- (Skip if eBay-only mode)
+      // A. TCG Lookup
       if (!isEbayOnly && userCard.grade === "Raw (Ungraded)") {
         let match = tcgData.data?.find((d: any) => String(d.id) === String(userCard.id));
 
-        // If not found by ID, try to match by name and set
         if (!match && userCard.name) {
           const candidates = tcgData.data?.filter((d: any) => 
             d.name.toLowerCase().includes(userCard.name.toLowerCase())
@@ -103,59 +97,45 @@ export async function POST(request: Request) {
         }
 
         if (match && match.variants) {
-            const getPriorityPrice = (v: any) => {
-                const listing = parseFloat(v.lowPrice) || parseFloat(v.listingPrice) || parseFloat(v.directLowPrice);
-                if (listing > 0) return listing;
-                return parseFloat(v.price) || Infinity;
-            };
+          const getPriorityPrice = (v: any) => {
+            const listing = parseFloat(v.lowPrice) || parseFloat(v.listingPrice) || parseFloat(v.directLowPrice);
+            if (listing > 0) return listing;
+            return parseFloat(v.price) || Infinity;
+          };
 
-            // STRICT FIX: Only filter for "Near Mint"
-            // We removed "Lightly Played" to prevent the $38.68 LP price from appearing
-            const validVariants = match.variants.filter((v: any) => 
-                v.condition && v.condition.toLowerCase().includes("near mint")
-            );
-            
-            validVariants.sort((a: any, b: any) => getPriorityPrice(a) - getPriorityPrice(b));
-            
-            // If we have a NM variant, pick the cheapest one.
-            let chosenVariant = validVariants.length > 0 ? validVariants[0] : null;
+          const validVariants = match.variants.filter((v: any) => 
+            v.condition && v.condition.toLowerCase().includes("near mint")
+          );
+          
+          validVariants.sort((a: any, b: any) => getPriorityPrice(a) - getPriorityPrice(b));
+          const chosenVariant = validVariants.length > 0 ? validVariants[0] : null;
 
-            // Note: We REMOVED the fallback that grabs "any non-damaged card".
-            // If TCGPlayer has no Near Mint copies, it will return Infinity,
-            // which correctly forces the app to look at eBay instead.
-
-            if (chosenVariant) {
-                tcgPrice = getPriorityPrice(chosenVariant);
-                const correctId = match.tcgplayerId || match.id;
-                // Only build a TCGPlayer link for games that are on TCGPlayer (pokemon)
-                tcgLink = match.tcgplayerId 
-                  ? `https://www.tcgplayer.com/product/${correctId}`
-                  : `https://justtcg.com/cards/${correctId}`;
-            }
+          if (chosenVariant) {
+            tcgPrice = getPriorityPrice(chosenVariant);
+            const correctId = match.tcgplayerId || match.id;
+            tcgLink = match.tcgplayerId 
+              ? `https://www.tcgplayer.com/product/${correctId}`
+              : `https://justtcg.com/cards/${correctId}`;
+          }
         }
       }
 
-      // --- B. eBay Lookup ---
+      // B. eBay Lookup
       try {
-        // STRICT FIX: Ensure Set Name is strictly passed
-        // We trim the string to avoid any whitespace issues that might confuse the search
         const searchSet = (userCard.set && !userCard.set.toLowerCase().includes("unknown")) 
-            ? userCard.set.trim() 
-            : "";
-        
-        console.log(`🔍 Card: ${userCard.name} | Set from payload: "${userCard.set}" | Clean Set: "${searchSet}"`);
+          ? userCard.set.trim() 
+          : "";
             
         const ebayResult = await searchEbay(userCard.name, searchSet, userCard.grade, userCard.isFirstEdition);
-        
         if (ebayResult && ebayResult.price) {
-            ebayPrice = parseFloat(String(ebayResult.price));
-            ebayLink = ebayResult.link || "";
-            console.log(`✅ eBay Result: $${ebayPrice} | Link: ${ebayLink}`);
+          ebayPrice = parseFloat(String(ebayResult.price));
+          ebayLink = ebayResult.link || "";
         }
-      } catch (e) { console.error("eBay error"); }
+      } catch (e) { 
+        console.error("eBay error:", e); 
+      }
 
-      // --- C. Source Decision ---
-      // Decide Best Source (TCGPlayer / JustTCG vs eBay)
+      // C. Source Decision
       if (tcgPrice !== Infinity) {
         bestSource = tcgLink.includes('justtcg.com') ? 'JustTCG' : 'TCGPlayer';
       } else if (ebayPrice !== Infinity) {
@@ -164,15 +144,13 @@ export async function POST(request: Request) {
         bestSource = "";
       }
       
-      // Override: If eBay is cheaper, use eBay
       if (ebayPrice < tcgPrice && ebayPrice !== Infinity) {
-          bestSource = "eBay";
+        bestSource = "eBay";
       }
 
       results.push({
         id: userCard.id,
         bestSource: bestSource,
-        // Send BOTH prices back
         tcgPrice: tcgPrice === Infinity ? null : tcgPrice.toFixed(2),
         tcgLink: tcgLink,
         ebayPrice: ebayPrice === Infinity ? null : ebayPrice.toFixed(2),
@@ -181,21 +159,49 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ data: results });
-
   } catch (error) {
     return NextResponse.json({ error: 'Update failed', details: String(error) }, { status: 500 });
   }
 }
 
 export async function GET(request: Request) {
-    try {
-        const { searchParams } = new URL(request.url);
-        const q = searchParams.get('q');
-        const game = searchParams.get('game') || 'pokemon';
-        const justTcgGame = game === 'onepiece' ? 'one-piece-card-game' : game;
-        const API_KEY = process.env.JUSTTCG_API_KEY;
-        const response = await fetch(`https://api.justtcg.com/v1/cards?game=${justTcgGame}&limit=20&q=${q}`, { headers: { 'x-api-key': API_KEY || "" } });
+  try {
+    const { searchParams } = new URL(request.url);
+    const q = searchParams.get('q') || '';
+    const game = searchParams.get('game') || 'pokemon';
+    const API_KEY = process.env.JUSTTCG_API_KEY;
+
+    if (!q.trim()) {
+      return NextResponse.json({ data: [] });
+    }
+
+    // 1. For Pokemon, first try TCGdex (Free, no rate limits, includes 30th & Delta Reign sets)
+    if (game === 'pokemon') {
+      try {
+        const tcgdexResults = await searchTcgdexCards(q, 24);
+        if (tcgdexResults.length > 0) {
+          return NextResponse.json({ data: tcgdexResults, source: 'tcgdex' });
+        }
+      } catch (tcgErr) {
+        console.warn('TCGdex fallback triggered:', tcgErr);
+      }
+    }
+
+    // 2. Fallback / One Piece: Query JustTCG
+    if (API_KEY) {
+      const justTcgGame = game === 'onepiece' ? 'one-piece-card-game' : game;
+      const response = await fetch(
+        `https://api.justtcg.com/v1/cards?game=${justTcgGame}&limit=24&q=${encodeURIComponent(q)}`,
+        { headers: { 'x-api-key': API_KEY } }
+      );
+      if (response.ok) {
         const data = await response.json();
-        return NextResponse.json(data);
-    } catch (error) { return NextResponse.json({ error: 'Server Error' }, { status: 500 }); }
+        return NextResponse.json({ data: data.data || [], source: 'justtcg' });
+      }
+    }
+
+    return NextResponse.json({ data: [] });
+  } catch (error) { 
+    return NextResponse.json({ error: 'Server Error', details: String(error) }, { status: 500 }); 
+  }
 }
