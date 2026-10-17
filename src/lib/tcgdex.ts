@@ -15,11 +15,20 @@ interface TcgdexCardDetail {
   name: string;
   image?: string;
   rarity?: string;
+  category?: string;
+  trainerType?: string;
   set?: {
     id: string;
     name: string;
     logo?: string;
   };
+  variants_detailed?: Array<{
+    type?: string;
+    thirdParty?: {
+      tcgplayer?: number;
+      cardmarket?: number;
+    };
+  }>;
   pricing?: {
     tcgplayer?: {
       normal?: { marketPrice?: number; lowPrice?: number; midPrice?: number };
@@ -31,31 +40,103 @@ interface TcgdexCardDetail {
   };
 }
 
-export async function searchTcgdexCards(query: string, limit: number = 24): Promise<SearchCardResult[]> {
+export interface TcgdexSearchOptions {
+  query?: string;
+  category?: string;
+  trainerType?: string;
+  rarities?: string[];
+  limit?: number;
+}
+
+export async function searchTcgdexCards(
+  queryOrOptions: string | TcgdexSearchOptions,
+  limitParam: number = 36
+): Promise<SearchCardResult[]> {
   try {
-    const cleanQuery = query.trim();
-    if (!cleanQuery) return [];
+    const options: TcgdexSearchOptions =
+      typeof queryOrOptions === 'string'
+        ? { query: queryOrOptions, limit: limitParam }
+        : { limit: limitParam, ...queryOrOptions };
 
-    // Query card list by name
-    const res = await fetch(`${TCGDEX_BASE}/cards?name=${encodeURIComponent(cleanQuery)}`, {
-      next: { revalidate: 3600 }
-    });
+    const query = options.query?.trim() || '';
+    const category = options.category?.trim() || '';
+    const trainerType = options.trainerType?.trim() || '';
+    const rarities = options.rarities || [];
+    const limit = options.limit || 36;
 
-    if (!res.ok) return [];
-    const items: TcgdexCardSummary[] = await res.json();
-    if (!Array.isArray(items)) return [];
+    if (!query && !category && rarities.length === 0) return [];
 
-    const topItems = items.slice(0, limit);
+    const itemMap = new Map<string, TcgdexCardSummary>();
 
-    // Fetch details for top items to extract set names and prices
+    if (rarities.length > 0) {
+      // Parallel fetch across selected rarities
+      const fetchPromises = rarities.map(async (r) => {
+        try {
+          const params = new URLSearchParams();
+          params.set('rarity', r);
+          if (category) params.set('category', category);
+          if (query) params.set('name', query);
+
+          const res = await fetch(`${TCGDEX_BASE}/cards?${params.toString()}`, {
+            next: { revalidate: 3600 }
+          });
+          if (!res.ok) return [];
+          return (await res.json()) as TcgdexCardSummary[];
+        } catch {
+          return [];
+        }
+      });
+
+      const results = await Promise.all(fetchPromises);
+      for (const list of results) {
+        if (Array.isArray(list)) {
+          for (const item of list) {
+            if (!itemMap.has(item.id)) {
+              itemMap.set(item.id, item);
+            }
+          }
+        }
+      }
+    } else {
+      try {
+        const params = new URLSearchParams();
+        if (query) params.set('name', query);
+        if (category) params.set('category', category);
+
+        const res = await fetch(`${TCGDEX_BASE}/cards?${params.toString()}`, {
+          next: { revalidate: 3600 }
+        });
+        if (res.ok) {
+          const list: TcgdexCardSummary[] = await res.json();
+          if (Array.isArray(list)) {
+            for (const item of list) itemMap.set(item.id, item);
+          }
+        }
+      } catch (err) {
+        console.error('TCGdex search error:', err);
+      }
+    }
+
+    const items = Array.from(itemMap.values());
+    if (items.length === 0) return [];
+
+    // Fetch details for items (take more if trainerType filter needs checking)
+    const fetchCount = trainerType ? Math.min(items.length, limit * 2) : Math.min(items.length, limit);
+    const topItems = items.slice(0, fetchCount);
+
     const detailed = await Promise.allSettled(
-      topItems.map(async (item): Promise<SearchCardResult> => {
+      topItems.map(async (item): Promise<SearchCardResult | null> => {
         try {
           const detailRes = await fetch(`${TCGDEX_BASE}/cards/${item.id}`, {
             next: { revalidate: 3600 }
           });
           if (!detailRes.ok) throw new Error('Failed to fetch detail');
           const d: TcgdexCardDetail = await detailRes.json();
+
+          // Subtype check (e.g. Supporter)
+          if (trainerType && d.trainerType && d.trainerType.toLowerCase() !== trainerType.toLowerCase()) {
+            return null;
+          }
 
           // Extract best available TCGPlayer price
           const tp = d.pricing?.tcgplayer;
@@ -73,9 +154,13 @@ export async function searchTcgdexCards(query: string, limit: number = 24): Prom
 
           const imageBase = d.image || item.image;
           const imageUrl = imageBase ? `${imageBase}/high.webp` : '';
+          const tcgId = d.variants_detailed?.[0]?.thirdParty?.tcgplayer
+            ? String(d.variants_detailed[0].thirdParty.tcgplayer)
+            : undefined;
 
           return {
             id: d.id,
+            tcgplayerId: tcgId,
             name: d.name,
             setName: d.set?.name || 'Pokémon TCG',
             set_name: d.set?.name || 'Pokémon TCG',
@@ -83,10 +168,13 @@ export async function searchTcgdexCards(query: string, limit: number = 24): Prom
             imageUrl: imageUrl,
             price: bestPrice ? bestPrice.toFixed(2) : null,
             rarity: d.rarity,
+            category: d.category,
+            trainerType: d.trainerType,
             number: d.localId,
             game: 'pokemon' as const
           };
         } catch {
+          if (trainerType) return null;
           const imageBase = item.image;
           const imageUrl = imageBase ? `${imageBase}/high.webp` : '';
           return {
@@ -105,8 +193,10 @@ export async function searchTcgdexCards(query: string, limit: number = 24): Prom
     );
 
     return detailed
-      .filter((r): r is PromiseFulfilledResult<SearchCardResult> => r.status === 'fulfilled')
-      .map(r => r.value);
+      .filter((r): r is PromiseFulfilledResult<SearchCardResult | null> => r.status === 'fulfilled')
+      .map((r) => r.value)
+      .filter((card): card is SearchCardResult => card !== null)
+      .slice(0, limit);
   } catch (error) {
     console.error('TCGdex search error:', error);
     return [];

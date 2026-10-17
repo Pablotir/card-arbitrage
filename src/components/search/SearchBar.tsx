@@ -3,15 +3,21 @@
 import { Search, Loader2 } from 'lucide-react';
 import { TcgToggle } from '../ui/TcgToggle';
 import { SetFilterBar } from './SetFilterBar';
-import { TcgGame } from '@/lib/types';
+import { FilterBar } from './FilterBar';
+import { TcgGame, SearchFilterState } from '@/lib/types';
 
 interface SearchBarProps {
   query: string;
   setQuery: (q: string) => void;
   game: TcgGame;
   setGame: (g: TcgGame) => void;
-  onSearch: (e: React.FormEvent) => void;
+  onSearch: (e?: React.FormEvent) => void;
   isLoading: boolean;
+  filters: SearchFilterState;
+  onFilterChange: (filters: SearchFilterState) => void;
+  onClearFilters: () => void;
+  totalResults?: number;
+  ownedCount?: number;
 }
 
 export function SearchBar({
@@ -20,22 +26,36 @@ export function SearchBar({
   game,
   setGame,
   onSearch,
-  isLoading
+  isLoading,
+  filters,
+  onFilterChange,
+  onClearFilters,
+  totalResults,
+  ownedCount
 }: SearchBarProps) {
   const handleQuickSet = (targetSet: string) => {
     setQuery(targetSet);
-    // Dispatch search
     const form = document.getElementById('search-form') as HTMLFormElement;
     if (form) form.requestSubmit();
   };
 
   return (
     <div className="bg-white dark:bg-gray-800/90 p-5 rounded-2xl shadow-xs border border-gray-100 dark:border-gray-700/80 space-y-4 transition-colors">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
           Search Marketplace &amp; Sets
         </span>
-        <TcgToggle value={game} onChange={setGame} />
+        <TcgToggle
+          value={game}
+          onChange={(newGame) => {
+            setGame(newGame);
+            const langCode = newGame === 'pokemon-japan' ? 'ja' : newGame === 'onepiece' ? 'onepiece' : 'en';
+            onFilterChange({
+              ...filters,
+              languages: filters.languages?.includes(langCode) ? filters.languages : [langCode, ...filters.languages]
+            });
+          }}
+        />
       </div>
 
       <form id="search-form" onSubmit={onSearch} className="flex gap-2 sm:gap-3">
@@ -46,9 +66,11 @@ export function SearchBar({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={
-              game === 'pokemon'
-                ? 'Search by Pokémon (e.g. Mega Rayquaza, Charizard) or set (30th, Delta Reign)...'
-                : 'Search One Piece cards (e.g. Luffy, Zoro, Nami, OP-09)...'
+              game === 'pokemon-japan'
+                ? 'Search Pokémon Japan (e.g. Lillie, Pikachu, 151, VMAX Climax, Shiny Star V)...'
+                : game === 'onepiece'
+                ? 'Search One Piece cards (e.g. Luffy, Zoro, Nami, OP-09)...'
+                : 'Search by Pokémon (e.g. Mega Rayquaza, Charizard) or set (30th, Delta Reign)...'
             }
             className="w-full pl-11 pr-4 py-3 bg-gray-50 dark:bg-gray-900/80 border border-gray-200 dark:border-gray-700 rounded-xl outline-hidden focus:ring-2 focus:ring-blue-500 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 transition"
           />
@@ -66,8 +88,22 @@ export function SearchBar({
         </button>
       </form>
 
-      {/* Quick set filters */}
-      <SetFilterBar game={game} onSelectSet={handleQuickSet} activeQuery={query} />
+      {/* Popular Set Chips */}
+      <SetFilterBar
+        game={game === 'pokemon-japan' ? 'pokemon' : game}
+        onSelectSet={handleQuickSet}
+        activeQuery={query}
+      />
+
+      {/* TCGPlayer-Style Multi-Attribute Filter Bar */}
+      <FilterBar
+        filters={filters}
+        onChange={onFilterChange}
+        onClear={onClearFilters}
+        onApplySearch={() => onSearch()}
+        totalResults={totalResults}
+        ownedCount={ownedCount}
+      />
     </div>
   );
 }

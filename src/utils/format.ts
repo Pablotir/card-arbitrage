@@ -50,3 +50,9 @@ export function formatTimeAgo(dateString?: string): string {
     return dateString;
   }
 }
+
+export function getProxiedImageUrl(url?: string | null): string {
+  if (!url) return '';
+  if (url.startsWith('/') || url.startsWith('data:')) return url;
+  return `/api/image-proxy?url=${encodeURIComponent(url)}`;
+}

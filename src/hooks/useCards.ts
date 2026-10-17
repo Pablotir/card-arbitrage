@@ -1,8 +1,19 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { CardItem, SearchCardResult, TcgGame } from '@/lib/types';
+import { CardItem, SearchCardResult, TcgGame, StorageMode } from '@/lib/types';
+import {
+  getLocalCards,
+  saveLocalCard,
+  updateLocalCard,
+  deleteLocalCard,
+  moveLocalCardToCollection,
+  getStorageMode,
+  setStorageMode,
+  migrateCloudToLocal,
+  clearCloudCards
+} from '@/lib/storage';
 
 async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
   try {
@@ -18,8 +29,44 @@ export function useCards(userId: string) {
   const [myCollection, setMyCollection] = useState<CardItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [storageMode, setStorageModeState] = useState<StorageMode>('local');
+  const [isMigrating, setIsMigrating] = useState(false);
+
+  useEffect(() => {
+    setStorageModeState(getStorageMode());
+  }, []);
 
   const fetchCards = useCallback(async (uid: string) => {
+    const currentMode = getStorageMode();
+
+    if (currentMode === 'local') {
+      const localTracked = getLocalCards('tracked');
+      const localCollection = getLocalCards('collection');
+
+      // If local storage is completely empty but uid is present, check cloud for initial seed
+      if (localTracked.length === 0 && localCollection.length === 0 && uid && supabase) {
+        try {
+          const { data } = await supabase
+            .from('cards')
+            .select('*')
+            .eq('user_id', uid);
+          if (data && data.length > 0) {
+            await migrateCloudToLocal(uid);
+            setMyList(getLocalCards('tracked'));
+            setMyCollection(getLocalCards('collection'));
+            return;
+          }
+        } catch {
+          // Fall through to empty local lists
+        }
+      }
+
+      setMyList(localTracked);
+      setMyCollection(localCollection);
+      return;
+    }
+
+    // Cloud Mode
     if (!supabase || !uid) return;
     try {
       const { data } = await supabase
@@ -40,6 +87,38 @@ export function useCards(userId: string) {
     }
   }, []);
 
+  const switchStorageMode = (mode: StorageMode) => {
+    setStorageMode(mode);
+    setStorageModeState(mode);
+    fetchCards(userId);
+  };
+
+  const handleMigrateFromServer = async () => {
+    if (!userId) return { success: false, count: 0 };
+    setIsMigrating(true);
+    try {
+      const result = await migrateCloudToLocal(userId);
+      setStorageMode('local');
+      setStorageModeState('local');
+      fetchCards(userId);
+      setIsMigrating(false);
+      return {
+        success: true,
+        count: result.wishlistCount + result.collectionCount,
+        wishlistCount: result.wishlistCount,
+        collectionCount: result.collectionCount
+      };
+    } catch (err) {
+      setIsMigrating(false);
+      return { success: false, count: 0 };
+    }
+  };
+
+  const handleClearServerCards = async () => {
+    if (!userId) return false;
+    return await clearCloudCards(userId);
+  };
+
   const addToTracked = async (card: SearchCardResult, game: TcgGame) => {
     const tcgId = card.tcgplayerId || card.id;
     const tcgLink = card.tcgplayerId
@@ -55,12 +134,20 @@ export function useCards(userId: string) {
       grade: 'Raw (Ungraded)',
       is_first_edition: false,
       live_price: card.price ? String(card.price) : 'N/A',
-      status: 'tracked',
+      status: 'tracked' as const,
       best_link: tcgLink,
       best_source: card.price ? 'TCGPlayer' : '',
-      game: game
+      game: game,
+      language: card.language
     };
 
+    if (storageMode === 'local') {
+      const created = saveLocalCard(newCard, 'tracked');
+      setMyList((prev) => [created, ...prev]);
+      return true;
+    }
+
+    // Cloud insert
     const { error } = await supabase.from('cards').insert(newCard);
     if (!error) {
       fetchCards(userId);
@@ -70,6 +157,14 @@ export function useCards(userId: string) {
   };
 
   const updateCardDetails = async (cardDbId: number, field: string, value: any) => {
+    if (storageMode === 'local') {
+      updateLocalCard(cardDbId, field, value);
+      setMyList((prev) =>
+        prev.map((c) => (c.id === cardDbId ? { ...c, [field]: value } : c))
+      );
+      return;
+    }
+
     setMyList((prev) =>
       prev.map((c) => (c.id === cardDbId ? { ...c, [field]: value } : c))
     );
@@ -77,11 +172,31 @@ export function useCards(userId: string) {
   };
 
   const deleteCard = async (cardDbId: number) => {
+    if (storageMode === 'local') {
+      deleteLocalCard(cardDbId);
+      setMyList((prev) => prev.filter((c) => c.id !== cardDbId));
+      setMyCollection((prev) => prev.filter((c) => c.id !== cardDbId));
+      return;
+    }
+
     await supabase.from('cards').delete().eq('id', cardDbId);
     fetchCards(userId);
   };
 
   const moveToCollection = async (card: CardItem, purchasePrice: number) => {
+    if (storageMode === 'local') {
+      const ok = moveLocalCardToCollection(card.id, purchasePrice);
+      if (ok) {
+        setMyList((prev) => prev.filter((c) => c.id !== card.id));
+        setMyCollection((prev) => [
+          { ...card, status: 'collection', purchase_price: purchasePrice },
+          ...prev
+        ]);
+        return true;
+      }
+      return false;
+    }
+
     const { error } = await supabase
       .from('cards')
       .update({ status: 'collection', purchase_price: purchasePrice })
@@ -159,11 +274,20 @@ export function useCards(userId: string) {
             updatePayload.best_source = 'eBay';
           }
 
-          await supabase
-            .from('cards')
-            .update(updatePayload)
-            .eq('card_id', updated.id)
-            .eq('user_id', userId);
+          if (storageMode === 'local') {
+            const cardObj = allCards.find((c) => String(c.card_id) === String(updated.id));
+            if (cardObj) {
+              for (const [k, v] of Object.entries(updatePayload)) {
+                updateLocalCard(cardObj.id, k, v);
+              }
+            }
+          } else {
+            await supabase
+              .from('cards')
+              .update(updatePayload)
+              .eq('card_id', updated.id)
+              .eq('user_id', userId);
+          }
         }
       }
       fetchCards(userId);
@@ -184,20 +308,20 @@ export function useCards(userId: string) {
     setServerError(null);
 
     const now = Date.now();
-    const ONE_HOUR = 60 * 60 * 1000;
+    const TWO_HOURS = 2 * 60 * 60 * 1000;
 
-    const cardsToCheck = allCards.filter((c) => {
+    const cardsToUpdate = allCards.filter((c) => {
       if (!c.last_ebay_check) return true;
       const lastCheck = new Date(c.last_ebay_check).getTime();
-      return now - lastCheck > ONE_HOUR;
+      return now - lastCheck > TWO_HOURS;
     });
 
-    if (cardsToCheck.length === 0) {
+    if (cardsToUpdate.length === 0) {
       setIsLoading(false);
       return { skipped: true };
     }
 
-    const batchPayload = cardsToCheck.map((c) => ({
+    const payload = cardsToUpdate.map((c) => ({
       id: c.card_id,
       name: c.name,
       set: c.set_name && !c.set_name.toLowerCase().includes('unknown') ? c.set_name : '',
@@ -212,45 +336,49 @@ export function useCards(userId: string) {
         const r = await fetch(`/api/cards?t=${Date.now()}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cards: batchPayload }),
+          body: JSON.stringify({ cards: payload }),
           cache: 'no-store'
         });
         const json = await r.json();
-        if (!r.ok) throw new Error('eBay check failed');
+        if (!r.ok) throw new Error('eBay refresh failed');
         return json;
       });
 
       if (responseJson.data) {
         for (const updated of responseJson.data) {
-          const currentCard = cardsToCheck.find((c) => c.card_id === updated.id);
           const updatePayload: any = {
             ebay_price: updated.ebayPrice,
             ebay_link: updated.ebayLink,
             last_ebay_check: new Date().toISOString()
           };
 
-          if (updated.ebayPrice && currentCard?.live_price) {
-            const ebayPrice = parseFloat(updated.ebayPrice);
-            const currentPrice = parseFloat(currentCard.live_price);
-            if (ebayPrice < currentPrice) {
-              updatePayload.live_price = updated.ebayPrice;
-              updatePayload.best_link = updated.ebayLink;
-              updatePayload.best_source = 'eBay';
-            }
+          if (updated.bestSource === 'eBay' && updated.ebayPrice) {
+            updatePayload.live_price = updated.ebayPrice;
+            updatePayload.best_link = updated.ebayLink;
+            updatePayload.best_source = 'eBay';
           }
 
-          await supabase
-            .from('cards')
-            .update(updatePayload)
-            .eq('card_id', updated.id)
-            .eq('user_id', userId);
+          if (storageMode === 'local') {
+            const cardObj = allCards.find((c) => String(c.card_id) === String(updated.id));
+            if (cardObj) {
+              for (const [k, v] of Object.entries(updatePayload)) {
+                updateLocalCard(cardObj.id, k, v);
+              }
+            }
+          } else {
+            await supabase
+              .from('cards')
+              .update(updatePayload)
+              .eq('card_id', updated.id)
+              .eq('user_id', userId);
+          }
         }
       }
       fetchCards(userId);
-      return { count: cardsToCheck.length };
-    } catch (error: any) {
-      setServerError("Failed to check eBay prices.");
-      throw error;
+      return { count: cardsToUpdate.length };
+    } catch (err: any) {
+      setServerError("Failed to refresh eBay sold comps. Please try again later.");
+      throw err;
     } finally {
       setIsLoading(false);
     }
@@ -261,6 +389,11 @@ export function useCards(userId: string) {
     myCollection,
     isLoading,
     serverError,
+    storageMode,
+    isMigrating,
+    switchStorageMode,
+    handleMigrateFromServer,
+    handleClearServerCards,
     setServerError,
     fetchCards,
     addToTracked,

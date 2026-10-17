@@ -5,6 +5,7 @@ import { GRADE_OPTIONS } from '@/utils/constants';
 import { formatCurrency } from '@/utils/format';
 import { ExternalLink, Target, Trash2, ShoppingBag } from 'lucide-react';
 import { Badge } from '../ui/Badge';
+import { SafeImage } from '../ui/SafeImage';
 
 interface CardRowProps {
   card: CardItem;
@@ -28,16 +29,12 @@ export function CardRow({
       {/* Thumbnail */}
       <td className="p-4 w-20">
         <div className="w-12 h-16 bg-gray-50 dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 flex items-center justify-center p-0.5">
-          {card.image ? (
-            <img
-              src={card.image}
-              alt={card.name}
-              referrerPolicy="no-referrer"
-              className="w-full h-full object-contain"
-            />
-          ) : (
-            <span className="text-[9px] text-gray-400">No Image</span>
-          )}
+          <SafeImage
+            src={card.image}
+            alt={card.name}
+            fallbackText="Card"
+            className="w-full h-full object-contain"
+          />
         </div>
       </td>
 
@@ -137,7 +134,7 @@ export function CardRow({
           type="button"
           onClick={() => onDeleteClick(card.id)}
           className="text-gray-400 hover:text-rose-500 dark:hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition"
-          title="Remove from Tracked"
+          title="Remove from Wishlist"
         >
           <Trash2 className="w-4 h-4" />
         </button>

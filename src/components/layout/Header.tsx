@@ -1,7 +1,8 @@
 'use client';
 
 import { ThemeToggle } from '../ui/ThemeToggle';
-import { Target, Search, Bookmark, Layers, LogOut } from 'lucide-react';
+import { Target, Search, Bookmark, Layers, LogOut, HardDrive, Zap } from 'lucide-react';
+import { StorageMode } from '@/lib/types';
 
 export type TabType = 'search' | 'list' | 'collection' | 'sniper';
 
@@ -11,6 +12,9 @@ interface HeaderProps {
   trackedCount: number;
   collectionCount: number;
   sniperCount?: number;
+  storageMode?: StorageMode;
+  onMigrateCloud?: () => void;
+  isMigrating?: boolean;
   user: any;
   onLogin: () => void;
   onLogout: () => void;
@@ -25,6 +29,9 @@ export function Header({
   trackedCount,
   collectionCount,
   sniperCount = 0,
+  storageMode = 'local',
+  onMigrateCloud,
+  isMigrating = false,
   user,
   onLogin,
   onLogout,
@@ -38,7 +45,7 @@ export function Header({
         {/* Brand / Logo */}
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-blue-600 dark:bg-blue-500 flex items-center justify-center text-white font-black text-lg shadow-sm">
-            ?
+            <Zap className="w-5 h-5 fill-current" />
           </div>
           <div>
             <h1 className="text-xl font-black text-gray-900 dark:text-white tracking-tight leading-none">
@@ -50,8 +57,29 @@ export function Header({
           </div>
         </div>
 
-        {/* Right side controls: Theme + Auth */}
-        <div className="flex items-center gap-3">
+        {/* Right side controls: Storage mode + Theme + Auth */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Storage quota badge / Migration trigger */}
+          <div className="hidden sm:flex items-center gap-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-2.5 py-1 rounded-xl text-[11px] font-medium text-gray-600 dark:text-gray-300">
+            <HardDrive className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Local Storage</span>
+            <span className="text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.2 rounded-full">
+              Zero Server Quota
+            </span>
+          </div>
+
+          {onMigrateCloud && (
+            <button
+              type="button"
+              onClick={onMigrateCloud}
+              disabled={isMigrating}
+              className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline px-1.5 py-1"
+              title="Import all cards from Supabase server into local storage"
+            >
+              {isMigrating ? 'Migrating...' : 'Sync Cloud'}
+            </button>
+          )}
+
           <ThemeToggle theme={theme} onToggle={onToggleTheme} mounted={themeMounted} />
 
           {user ? (
@@ -99,6 +127,7 @@ export function Header({
           <span>Search Cards</span>
         </button>
 
+        {/* Tab renamed to Wishlist per user request */}
         <button
           onClick={() => setActiveTab('list')}
           className={`px-3.5 py-2.5 text-xs sm:text-sm font-semibold transition border-b-2 flex items-center gap-2 whitespace-nowrap ${
@@ -108,7 +137,7 @@ export function Header({
           }`}
         >
           <Bookmark className="w-4 h-4" />
-          <span>Tracked ({trackedCount})</span>
+          <span>Wishlist ({trackedCount})</span>
         </button>
 
         <button

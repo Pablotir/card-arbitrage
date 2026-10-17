@@ -5,6 +5,7 @@ import { GRADE_OPTIONS } from '@/utils/constants';
 import { formatCurrency } from '@/utils/format';
 import { ExternalLink, Target, Trash2, ShoppingBag } from 'lucide-react';
 import { Badge } from '../ui/Badge';
+import { SafeImage } from '../ui/SafeImage';
 
 interface CardGridProps {
   cards: CardItem[];
@@ -35,16 +36,12 @@ export function CardGrid({
             <div>
               {/* Image */}
               <div className="w-full h-44 bg-gray-50 dark:bg-gray-900 rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800 flex items-center justify-center p-2 mb-3">
-                {card.image ? (
-                  <img
-                    src={card.image}
-                    alt={card.name}
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
-                  />
-                ) : (
-                  <span className="text-xs text-gray-400">No Image</span>
-                )}
+                <SafeImage
+                  src={card.image}
+                  alt={card.name}
+                  fallbackText="Card"
+                  className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-200"
+                />
               </div>
 
               {/* Card Meta */}

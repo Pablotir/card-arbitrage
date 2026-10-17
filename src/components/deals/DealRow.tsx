@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { DealItem } from '@/lib/types';
 import { ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { formatCurrency } from '@/utils/format';
+import { SafeImage } from '../ui/SafeImage';
 
 interface DealRowProps {
   items: DealItem[];
@@ -85,16 +86,12 @@ export function DealRow({ items, isLoading }: DealRowProps) {
             className="flex-none w-44 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700/80 rounded-2xl shadow-xs hover:shadow-md transition-all p-3 flex flex-col gap-2 hover:-translate-y-0.5"
           >
             <div className="w-full h-28 bg-gray-50 dark:bg-gray-900 rounded-xl overflow-hidden flex items-center justify-center p-1">
-              {item.image ? (
-                <img
-                  src={item.image}
-                  alt={item.title}
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-contain"
-                />
-              ) : (
-                <span className="text-[10px] text-gray-400">No Image</span>
-              )}
+              <SafeImage
+                src={item.image}
+                alt={item.title}
+                fallbackText="Card Listing"
+                className="w-full h-full object-contain"
+              />
             </div>
 
             <p className="text-[11px] font-bold text-gray-800 dark:text-gray-200 line-clamp-2 leading-tight">

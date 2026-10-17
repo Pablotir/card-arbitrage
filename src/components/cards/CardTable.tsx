@@ -119,7 +119,7 @@ export function CardTable({
       <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gray-50/50 dark:bg-gray-800/50">
         <div className="flex items-center gap-3">
           <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
-            Tracked Cards ({filteredAndSortedCards.length})
+            Wishlist Cards ({filteredAndSortedCards.length})
           </h2>
           <TcgToggle value={tcg} onChange={setTcg} />
         </div>
@@ -234,8 +234,8 @@ export function CardTable({
           </h3>
           <p className="text-xs text-gray-400 dark:text-gray-500 max-w-sm mx-auto mt-1">
             {cards.length === 0
-              ? 'You have not added any cards yet. Use Search Cards above to track your favorite cards.'
-              : 'No tracked cards match your search or grade filter.'}
+              ? 'You have not added any cards to your wishlist yet. Use Search Cards above to add your favorite cards.'
+              : 'No wishlist cards match your search or grade filter.'}
           </p>
         </div>
       ) : viewMode === 'grid' ? (

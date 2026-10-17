@@ -1,4 +1,6 @@
-export type TcgGame = 'pokemon' | 'onepiece';
+export type TcgGame = 'pokemon' | 'pokemon-japan' | 'onepiece';
+export type CardLanguage = 'en' | 'ja' | 'ko' | 'zh' | 'onepiece';
+export type StorageMode = 'local' | 'cloud';
 
 export type CardGrade = 
   | 'Raw (Ungraded)'
@@ -33,11 +35,23 @@ export interface CardItem {
   best_source?: 'TCGPlayer' | 'JustTCG' | 'eBay' | 'TCGdex' | string;
   ebay_price?: string | null;
   ebay_link?: string | null;
-  status: 'tracked' | 'collection';
+  status: 'tracked' | 'collection'; // 'tracked' acts as the Wishlist status
   game?: TcgGame;
+  language?: CardLanguage;
   last_price_update?: string;
   last_ebay_check?: string;
   created_at?: string;
+}
+
+export interface MultiLangPrice {
+  language: CardLanguage;
+  label: string;
+  price: number | null;
+  currency: string;
+  source: string;
+  link?: string;
+  image?: string;
+  isCheapest?: boolean;
 }
 
 export interface SearchCardResult {
@@ -51,7 +65,27 @@ export interface SearchCardResult {
   price?: number | string | null;
   rarity?: string;
   number?: string;
+  category?: string;
+  trainerType?: string;
   game?: TcgGame;
+  language?: CardLanguage;
+
+  // Multi-Language Cost Comparison & Optimization
+  languages?: Partial<Record<CardLanguage, MultiLangPrice>>;
+  cheapestLanguage?: CardLanguage;
+  cheapestPrice?: number | null;
+  savingsVsEnglish?: number; // e.g. 62 (%)
+  hasHighValueAltLanguages?: boolean; // true if price > 100 and KR/ZH comparisons were added
+}
+
+export interface SearchFilterState {
+  languages: CardLanguage[]; // Multi-select: 'en', 'ja', 'ko', 'zh', 'onepiece'
+  categories: string[]; // Multi-select: 'Trainer - Supporter', 'Pokemon', etc.
+  rarities: string[]; // Multi-select: 'Ultra Rare', 'Special Illustration Rare', etc.
+  conditions: string[]; // Multi-select: 'Near Mint', 'Lightly Played', etc.
+  printings: string[]; // Multi-select: 'Normal', 'Holofoil', '1st Edition', etc.
+  setName: string;
+  onlyUnowned: boolean; // "Missing from Collection" / "Cards I don't have"
 }
 
 export interface DealItem {
