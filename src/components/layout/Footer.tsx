@@ -27,7 +27,7 @@ export function Footer() {
             href="mailto:banditsalandit123@gmail.com"
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition mt-1"
           >
-            <span>??</span> Share an Idea
+            <span>💡</span> Share an Idea
           </a>
         </div>
 
@@ -66,7 +66,7 @@ export function Footer() {
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 text-xs font-medium px-3 py-1.5 rounded-lg transition"
             >
-              ?? Portfolio
+              🌐 Portfolio
             </a>
           </div>
         </div>

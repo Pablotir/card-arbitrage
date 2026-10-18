@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { searchEbay } from '../utils/ebay'; 
 import { searchTcgdexCards } from '@/lib/tcgdex';
 import { CardLanguage, MultiLangPrice, SearchCardResult } from '@/lib/types';
+import { translateJapaneseCardName, findEnglishCounterpart } from '@/lib/jpTranslations';
+import { getKnownCardPrice } from '@/lib/knownPrices';
 
 // In-Memory cache for JustTCG to conserve limited user API query credits
 const justTcgCache = new Map<string, { timestamp: number; data: any }>();
@@ -186,8 +188,15 @@ function attachMultiLanguagePrices(
   const includeZh = requestedLanguages.includes('zh');
 
   return cards.map((card) => {
-    const rawPrice = card.price ? parseFloat(String(card.price)) : null;
-    const basePrice = rawPrice && !isNaN(rawPrice) && rawPrice > 0 ? rawPrice : 25; // fallback baseline if unpriced
+    const known = getKnownCardPrice(card.id, card.name, card.rarity);
+    if (known) {
+      if (!card.price || card.price === 'N/A') card.price = known.price;
+      if (!card.tcgplayerId) card.tcgplayerId = known.tcgplayerId;
+      if (!card.pricingSource) card.pricingSource = known.source;
+    }
+
+    const rawPrice = card.price ? parseFloat(String(card.price)) : (known?.price ?? null);
+    const basePrice = rawPrice && !isNaN(rawPrice) && rawPrice > 0 ? rawPrice : (known?.price ?? 25);
 
     const isHighEnd = basePrice >= 100;
     const shouldIncludeAsianAlts = isHighEnd || includeKo || includeZh;
@@ -329,11 +338,14 @@ export async function GET(request: Request) {
         (async () => {
           const jaCards: SearchCardResult[] = [];
           try {
+            // In Japanese TCGdex, Secret Rares (SR, SAR) in modern SV sets are stored with rarity 'None'.
+            // Include 'None' and 'Super Rare' so they are retrieved and their true rarities inferred!
+            const jaRarities = rarities.length > 0 ? [...rarities, 'None', 'Super Rare'] : [];
             const tcgdexJa = await searchTcgdexCards({
               query: q,
               category,
               trainerType,
-              rarities,
+              rarities: jaRarities,
               limit: Math.min(limit, 400),
               lang: 'ja'
             });
@@ -517,11 +529,58 @@ export async function GET(request: Request) {
       combinedMap.set(`en-${card.id}`, card);
     }
 
-    // 2. Add Japanese cards (include language exclusives)
+    // 2. Add Japanese cards: Drop duplicates with English counterparts & translate true exclusives
     for (const card of jaResults) {
-      const key = `ja-${card.id}`;
-      if (!combinedMap.has(key)) {
-        combinedMap.set(key, card);
+      const counterpart = findEnglishCounterpart(card, enResults);
+
+      if (counterpart) {
+        // Drop duplicate! Update English card's Japanese pricing with the real Japanese comp
+        if (card.price) {
+          const jpNum = parseFloat(String(card.price));
+          if (!isNaN(jpNum) && jpNum > 0) {
+            counterpart.languages = counterpart.languages || {};
+            counterpart.languages.ja = {
+              language: 'ja',
+              label: 'Japanese',
+              price: jpNum,
+              currency: 'USD',
+              source: card.pricingSource || 'Cardmarket',
+              link: card.tcgplayerId
+                ? `https://www.tcgplayer.com/product/${card.tcgplayerId}?page=1&Language=all`
+                : undefined
+            };
+
+            // Recalculate cheapest language and savings on counterpart
+            let cheapestLang = 'en';
+            let cheapestVal = counterpart.languages.en?.price ?? (counterpart.price ? parseFloat(String(counterpart.price)) : 0);
+            for (const [lKey, lInfo] of Object.entries(counterpart.languages)) {
+              if (lInfo.price !== null && lInfo.price < cheapestVal) {
+                cheapestVal = lInfo.price;
+                cheapestLang = lKey;
+              }
+            }
+            counterpart.cheapestLanguage = cheapestLang as any;
+            counterpart.cheapestPrice = cheapestVal;
+            const enMkt = counterpart.languages.en?.price ?? (counterpart.price ? parseFloat(String(counterpart.price)) : 0);
+            if (enMkt > cheapestVal) {
+              counterpart.savingsVsEnglish = Math.round(((enMkt - cheapestVal) / enMkt) * 100);
+            }
+          }
+        }
+      } else {
+        // True Japanese Exclusive without an English release!
+        const { englishName, isTranslated } = translateJapaneseCardName(card.name);
+        const displayName = isTranslated ? `${englishName} [JP Exclusive]` : `${card.name} [JP Exclusive]`;
+
+        const exclusiveCard: SearchCardResult = {
+          ...card,
+          name: displayName,
+          game: 'pokemon-japan',
+          language: 'ja',
+          isExclusive: true
+        };
+
+        combinedMap.set(`ja-${card.id}`, exclusiveCard);
       }
     }
 

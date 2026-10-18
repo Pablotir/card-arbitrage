@@ -55,7 +55,7 @@ export function SniperDashboard({
 
       if (matches.length > 0) {
         onShowToast(
-          `?? Found ${matches.length} listings under $${rule.target_price}!`,
+          `🎯 Found ${matches.length} listings under $${rule.target_price}!`,
           'success'
         );
       } else {
@@ -224,7 +224,7 @@ export function SniperDashboard({
                   {matches.length > 0 && (
                     <div className="bg-purple-50/50 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-900/60 rounded-xl p-3 space-y-2">
                       <span className="text-[11px] font-bold text-purple-800 dark:text-purple-300 uppercase tracking-wider block">
-                        ?? {matches.length} eBay Listings Found Below ${rule.target_price}:
+                        🎯 {matches.length} eBay Listings Found Below ${rule.target_price}:
                       </span>
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                         {matches.map((m, mIdx) => (

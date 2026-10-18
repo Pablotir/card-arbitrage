@@ -74,7 +74,7 @@ export function SniperRuleModal({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create snipe rule');
 
-      onShowToast(`?? Snipe rule set for ${cardName} under $${priceNum.toFixed(2)}!`, 'success');
+      onShowToast(`🎯 Snipe rule set for ${cardName} under $${priceNum.toFixed(2)}!`, 'success');
       if (data.data && data.data[0]) {
         onRuleCreated(data.data[0]);
       }

@@ -91,7 +91,7 @@ export async function POST(request: Request) {
               avatar_url: 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/poke-ball.png',
               embeds: [
                 {
-                  title: `?? Snipe Found: ${cardName}`,
+                  title: `🎯 Snipe Found: ${cardName}`,
                   description: `**${topMatch.title}**\nFound for **$${topMatch.price}** (Target was under $${maxPrice.toFixed(2)})`,
                   url: topMatch.link,
                   color: 0x22c55e,

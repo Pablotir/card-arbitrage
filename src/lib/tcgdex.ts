@@ -1,4 +1,5 @@
 import { SearchCardResult, SetInfo } from './types';
+import { getKnownCardPrice } from './knownPrices';
 
 const TCGDEX_ROOT = 'https://api.tcgdex.net/v2';
 
@@ -21,6 +22,10 @@ interface TcgdexCardDetail {
     id: string;
     name: string;
     logo?: string;
+    cardCount?: {
+      official?: number;
+      total?: number;
+    };
   };
   variants_detailed?: Array<{
     type?: string;
@@ -57,6 +62,42 @@ export interface TcgdexSearchOptions {
 
 const cardDetailCache = new Map<string, TcgdexCardDetail>();
 
+export function getEraPriority(id?: string): number {
+  const lower = (id || '').toLowerCase();
+  if (lower.startsWith('sv')) return 100;
+  if (lower.startsWith('swsh') || lower.startsWith('s8') || lower.startsWith('s9') || lower.startsWith('s10') || lower.startsWith('s11') || lower.startsWith('s12') || lower.startsWith('s-p')) return 90;
+  if (lower.startsWith('sm')) return 80;
+  if (lower.startsWith('xy')) return 70;
+  if (lower.startsWith('bw')) return 60;
+  return 10;
+}
+
+export function inferCardRarity(d: TcgdexCardDetail): string {
+  if (d.rarity && d.rarity.toLowerCase() !== 'none') {
+    return d.rarity;
+  }
+
+  const cleanLocalId = parseInt(d.localId || '0', 10);
+  const officialCount = d.set?.cardCount?.official || 0;
+
+  // If localId is greater than official set count, it is a Secret Rare / Full Art / SAR!
+  if (officialCount > 0 && cleanLocalId > officialCount) {
+    const diff = cleanLocalId - officialCount;
+    // For Japanese sets (like SV7a 64 official, 83 is SR, 90 is SAR):
+    if (diff >= 24 || (d.category === 'Trainer' && diff >= 24)) {
+      return 'Special Illustration Rare';
+    }
+    return 'Ultra Rare';
+  }
+
+  // High-class reprint sets (SM4+, SM8b, S8b, SV8a, MC, etc.) where trainers have no rarity marked:
+  if (d.category === 'Trainer' || d.trainerType) {
+    return 'Uncommon';
+  }
+
+  return 'Rare';
+}
+
 export async function searchTcgdexCards(
   queryOrOptions: string | TcgdexSearchOptions,
   limitParam: number = 1000
@@ -79,24 +120,38 @@ export async function searchTcgdexCards(
 
     const itemMap = new Map<string, TcgdexCardSummary>();
 
-    if (rarities.length > 0) {
-      // Parallel fetch across selected rarities
-      const fetchPromises = rarities.map(async (r) => {
-        try {
-          const params = new URLSearchParams();
-          params.set('rarity', r);
-          if (category) params.set('category', category);
-          if (query) params.set('name', query);
+    const queryVariants = query ? [query] : [''];
+    if (query.includes("'")) {
+      queryVariants.push(query.replace(/'/g, '’'));
+    } else if (query.includes("’")) {
+      queryVariants.push(query.replace(/’/g, "'"));
+    }
 
-          const res = await fetch(`${baseUrl}/cards?${params.toString()}`, {
-            next: { revalidate: 3600 }
-          });
-          if (!res.ok) return [];
-          return (await res.json()) as TcgdexCardSummary[];
-        } catch {
-          return [];
+    if (rarities.length > 0) {
+      // Parallel fetch across selected rarities and query variants
+      const fetchPromises: Promise<TcgdexCardSummary[]>[] = [];
+      for (const r of rarities) {
+        for (const qv of queryVariants) {
+          fetchPromises.push(
+            (async () => {
+              try {
+                const params = new URLSearchParams();
+                params.set('rarity', r);
+                if (category) params.set('category', category);
+                if (qv) params.set('name', qv);
+
+                const res = await fetch(`${baseUrl}/cards?${params.toString()}`, {
+                  next: { revalidate: 3600 }
+                });
+                if (!res.ok) return [];
+                return (await res.json()) as TcgdexCardSummary[];
+              } catch {
+                return [];
+              }
+            })()
+          );
         }
-      });
+      }
 
       const results = await Promise.all(fetchPromises);
       for (const list of results) {
@@ -110,17 +165,19 @@ export async function searchTcgdexCards(
       }
     } else {
       try {
-        const params = new URLSearchParams();
-        if (query) params.set('name', query);
-        if (category) params.set('category', category);
+        for (const qv of queryVariants) {
+          const params = new URLSearchParams();
+          if (qv) params.set('name', qv);
+          if (category) params.set('category', category);
 
-        const res = await fetch(`${baseUrl}/cards?${params.toString()}`, {
-          next: { revalidate: 3600 }
-        });
-        if (res.ok) {
-          const list: TcgdexCardSummary[] = await res.json();
-          if (Array.isArray(list)) {
-            for (const item of list) itemMap.set(item.id, item);
+          const res = await fetch(`${baseUrl}/cards?${params.toString()}`, {
+            next: { revalidate: 3600 }
+          });
+          if (res.ok) {
+            const list: TcgdexCardSummary[] = await res.json();
+            if (Array.isArray(list)) {
+              for (const item of list) itemMap.set(item.id, item);
+            }
           }
         }
       } catch (err) {
@@ -131,9 +188,12 @@ export async function searchTcgdexCards(
     const items = Array.from(itemMap.values());
     if (items.length === 0) return [];
 
+    // Prioritize modern Scarlet & Violet and Sword & Shield sets first before vintage
+    const sortedItems = items.slice().sort((a, b) => getEraPriority(b.id) - getEraPriority(a.id));
+
     // Allow fetching sufficient candidates to meet requested limit
-    const fetchCount = trainerType ? Math.min(items.length, limit * 2) : Math.min(items.length, limit);
-    const topItems = items.slice(0, fetchCount);
+    const fetchCount = trainerType ? Math.min(sortedItems.length, limit * 2) : Math.min(sortedItems.length, limit);
+    const topItems = sortedItems.slice(0, fetchCount);
 
     // Fetch details in concurrent chunks of 60 with in-memory caching
     const detailedResults: (SearchCardResult | null)[] = [];
@@ -201,6 +261,16 @@ export async function searchTcgdexCards(
             }
           }
 
+          // Known high-value card pricing fallback (e.g. Misty's Favor, Lillie, Rosa)
+          if (!bestPrice || bestPrice === 0) {
+            const known = getKnownCardPrice(d.id, d.name, d.rarity);
+            if (known) {
+              bestPrice = known.price;
+              tcgId = tcgId || known.tcgplayerId;
+              pricingSource = known.source;
+            }
+          }
+
           // Cardmarket fallback for non-English (EUR -> USD ~1.08)
           if (!bestPrice && d.pricing?.cardmarket) {
             const cm = d.pricing.cardmarket;
@@ -242,7 +312,7 @@ export async function searchTcgdexCards(
             image: imageUrl,
             imageUrl: imageUrl,
             price: bestPrice ? bestPrice.toFixed(2) : null,
-            rarity: d.rarity,
+            rarity: inferCardRarity(d),
             category: d.category,
             trainerType: d.trainerType,
             number: d.localId,

@@ -1,6 +1,6 @@
 'use client';
 
-import { Search, Loader2 } from 'lucide-react';
+import { Search, Loader2, RefreshCw } from 'lucide-react';
 import { TcgToggle } from '../ui/TcgToggle';
 import { SetFilterBar } from './SetFilterBar';
 import { FilterBar } from './FilterBar';
@@ -12,6 +12,7 @@ interface SearchBarProps {
   game: TcgGame;
   setGame: (g: TcgGame) => void;
   onSearch: (e?: React.FormEvent) => void;
+  onRefreshPrices?: () => void;
   isLoading: boolean;
   filters: SearchFilterState;
   onFilterChange: (filters: SearchFilterState) => void;
@@ -26,6 +27,7 @@ export function SearchBar({
   game,
   setGame,
   onSearch,
+  onRefreshPrices,
   isLoading,
   filters,
   onFilterChange,
@@ -45,17 +47,31 @@ export function SearchBar({
         <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
           Search Marketplace &amp; Sets
         </span>
-        <TcgToggle
-          value={game}
-          onChange={(newGame) => {
-            setGame(newGame);
-            const langCode = newGame === 'pokemon-japan' ? 'ja' : newGame === 'onepiece' ? 'onepiece' : 'en';
-            onFilterChange({
-              ...filters,
-              languages: filters.languages?.includes(langCode) ? filters.languages : [langCode, ...filters.languages]
-            });
-          }}
-        />
+        <div className="flex items-center gap-2 self-end sm:self-auto">
+          {onRefreshPrices && (
+            <button
+              type="button"
+              onClick={onRefreshPrices}
+              disabled={isLoading}
+              className="text-xs font-semibold text-gray-600 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 transition cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/60"
+              title="Force reload live prices from market (bypasses 5-day cache)"
+            >
+              <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh Prices</span>
+            </button>
+          )}
+          <TcgToggle
+            value={game}
+            onChange={(newGame) => {
+              setGame(newGame);
+              const langCode = newGame === 'pokemon-japan' ? 'ja' : newGame === 'onepiece' ? 'onepiece' : 'en';
+              onFilterChange({
+                ...filters,
+                languages: filters.languages?.includes(langCode) ? filters.languages : [langCode, ...filters.languages]
+              });
+            }}
+          />
+        </div>
       </div>
 
       <form id="search-form" onSubmit={onSearch} className="flex gap-2 sm:gap-3">

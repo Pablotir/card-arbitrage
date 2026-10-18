@@ -9,7 +9,7 @@ let tokenExpiresAt = 0;
 
 // ---- In-memory result cache (shared across concurrent requests) ----
 const resultCache: Record<string, { data: any[]; expiresAt: number }> = {};
-const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes cache to protect eBay rate limits
 
 // ---- In-flight deduplication: if a fetch is already in progress for a key,
 //      subsequent requests await the same promise instead of firing a new eBay call ----
@@ -63,13 +63,31 @@ function formatTimeLeft(endDate: Date): string | null {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get('type') || '10s';
+  const q = searchParams.get('q') || '';
+  const cleanQ = q.trim();
 
   const game = searchParams.get('game') || 'pokemon';
   const isOnePiece = game === 'onepiece';
 
-  // Build query per section
+  // Build query per section with optional keyword search support
   let query = '';
-  if (isOnePiece) {
+  if (cleanQ) {
+    if (isOnePiece) {
+      switch (type) {
+        case '10s': query = `${cleanQ} one piece graded 10`; break;
+        case 'blacklabel': query = `${cleanQ} one piece pristine black label`; break;
+        case '9s': query = `${cleanQ} one piece graded 9`; break;
+        default: query = `${cleanQ} one piece card auction`;
+      }
+    } else {
+      switch (type) {
+        case '10s': query = `${cleanQ} pokemon graded 10`; break;
+        case 'blacklabel': query = `${cleanQ} pokemon pristine black label`; break;
+        case '9s': query = `${cleanQ} pokemon graded 9`; break;
+        default: query = `${cleanQ} pokemon cards auction`;
+      }
+    }
+  } else if (isOnePiece) {
     switch (type) {
       case '10s':
         query = 'graded 10 one piece card';
@@ -105,7 +123,7 @@ export async function GET(request: Request) {
   }
 
   // 1. Serve fresh cache immediately
-  const cacheKey = `${type}:${game}`;
+  const cacheKey = `${type}:${game}:${cleanQ.toLowerCase()}`;
   const cached = resultCache[cacheKey];
   if (cached && Date.now() < cached.expiresAt) {
     return NextResponse.json({ data: cached.data });

@@ -1,10 +1,10 @@
 'use client';
 
 import { ThemeToggle } from '../ui/ThemeToggle';
-import { Target, Search, Bookmark, Layers, LogOut, HardDrive, Zap } from 'lucide-react';
+import { Target, Search, Bookmark, Layers, LogOut, HardDrive, Zap, Flame } from 'lucide-react';
 import { StorageMode } from '@/lib/types';
 
-export type TabType = 'search' | 'list' | 'collection' | 'sniper';
+export type TabType = 'search' | 'auctions' | 'list' | 'collection' | 'sniper';
 
 interface HeaderProps {
   activeTab: TabType;
@@ -125,6 +125,22 @@ export function Header({
         >
           <Search className="w-4 h-4" />
           <span>Search Cards</span>
+        </button>
+
+        {/* Live Auctions Tab - Dedicated Tab per user request */}
+        <button
+          onClick={() => setActiveTab('auctions')}
+          className={`px-3.5 py-2.5 text-xs sm:text-sm font-semibold transition border-b-2 flex items-center gap-2 whitespace-nowrap ${
+            activeTab === 'auctions'
+              ? 'border-rose-600 text-rose-600 dark:border-rose-400 dark:text-rose-400'
+              : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+          }`}
+        >
+          <Flame className="w-4 h-4 text-rose-500" />
+          <span>Live Auctions</span>
+          <span className="text-[9px] bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 font-bold px-1.5 py-0.2 rounded-full uppercase tracking-wider">
+            Live
+          </span>
         </button>
 
         {/* Tab renamed to Wishlist per user request */}

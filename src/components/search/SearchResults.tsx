@@ -161,7 +161,7 @@ export function SearchResults({
                       {setName}
                     </span>
 
-                    {card.rarity && (
+                    {card.rarity && card.rarity.toLowerCase() !== 'none' && (
                       <span className="inline-block mt-1 text-[10px] font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-200 dark:border-purple-800/60 w-fit truncate">
                         {card.rarity}
                       </span>

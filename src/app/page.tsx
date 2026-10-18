@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { CardItem, SearchCardResult, TcgGame, DealItem, SearchFilterState } from '@/lib/types';
 import { useTheme } from '@/hooks/useTheme';
@@ -8,7 +8,7 @@ import { useCards } from '@/hooks/useCards';
 import { useSniper } from '@/hooks/useSniper';
 
 // Components
-import { Header } from '@/components/layout/Header';
+import { Header, TabType } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { SearchBar } from '@/components/search/SearchBar';
 import { SearchResults } from '@/components/search/SearchResults';
@@ -16,18 +16,19 @@ import { SearchLoadingBanner } from '@/components/search/SearchLoadingBanner';
 import { CardTable } from '@/components/cards/CardTable';
 import { PortfolioStats } from '@/components/collection/PortfolioStats';
 import { CollectionTable } from '@/components/collection/CollectionTable';
-import { DealSection } from '@/components/deals/DealSection';
+import { AuctionsTab } from '@/components/deals/AuctionsTab';
 import { SniperDashboard } from '@/components/sniper/SniperDashboard';
 import { PurchaseModal } from '@/components/cards/PurchaseModal';
 import { SniperRuleModal } from '@/components/sniper/SniperRuleModal';
 import { ToastContainer, ToastMessage } from '@/components/ui/Toast';
 import { formatCurrency } from '@/utils/format';
+import { getCachedCatalog, setCachedCatalog } from '@/lib/cardCatalogCache';
 
 export default function Home() {
   const { theme, toggleTheme, mounted: themeMounted } = useTheme();
 
   // Navigation & Game State
-  const [activeTab, setActiveTab] = useState<'search' | 'list' | 'collection' | 'sniper'>('search');
+  const [activeTab, setActiveTab] = useState<TabType>('search');
   const [tcg, setTcg] = useState<TcgGame>('pokemon');
 
   // Search & Multi-Select Filter State
@@ -151,35 +152,37 @@ export default function Home() {
     checkUser();
   }, [fetchCards, fetchSniperRules]);
 
-  // Fetch Deals (when logged in & on game change)
-  useEffect(() => {
+  // Fetch Deals (when logged in & on game change & activeTab === 'auctions')
+  const fetchDealsData = useCallback(async () => {
     if (!user) return;
-    const fetchDealsData = async () => {
-      setDealsLoading(true);
-      try {
-        const dealGame = tcg === 'pokemon-japan' ? 'pokemon' : tcg;
-        const [tensRes, blRes, ninesRes] = await Promise.allSettled([
-          fetch(`/api/deals?type=10s&game=${dealGame}`).then((r) => r.json()),
-          fetch(`/api/deals?type=blacklabel&game=${dealGame}`).then((r) => r.json()),
-          fetch(`/api/deals?type=9s&game=${dealGame}`).then((r) => r.json())
-        ]);
+    setDealsLoading(true);
+    try {
+      const dealGame = tcg === 'pokemon-japan' ? 'pokemon' : tcg;
+      const [tensRes, blRes, ninesRes] = await Promise.allSettled([
+        fetch(`/api/deals?type=10s&game=${dealGame}`).then((r) => r.json()),
+        fetch(`/api/deals?type=blacklabel&game=${dealGame}`).then((r) => r.json()),
+        fetch(`/api/deals?type=9s&game=${dealGame}`).then((r) => r.json())
+      ]);
 
-        setDeals({
-          tens: tensRes.status === 'fulfilled' ? tensRes.value.data || [] : [],
-          blackLabel: blRes.status === 'fulfilled' ? blRes.value.data || [] : [],
-          nines: ninesRes.status === 'fulfilled' ? ninesRes.value.data || [] : []
-        });
-      } catch {
-        // Keep existing deals if request fails
-      } finally {
-        setDealsLoading(false);
-      }
-    };
-
-    fetchDealsData();
-    const interval = setInterval(fetchDealsData, 2 * 60 * 1000);
-    return () => clearInterval(interval);
+      setDeals({
+        tens: tensRes.status === 'fulfilled' ? tensRes.value.data || [] : [],
+        blackLabel: blRes.status === 'fulfilled' ? blRes.value.data || [] : [],
+        nines: ninesRes.status === 'fulfilled' ? ninesRes.value.data || [] : []
+      });
+    } catch {
+      // Keep existing deals if request fails
+    } finally {
+      setDealsLoading(false);
+    }
   }, [user, tcg]);
+
+  useEffect(() => {
+    if (activeTab === 'auctions') {
+      fetchDealsData();
+      const interval = setInterval(fetchDealsData, 5 * 60 * 1000); // 5 min interval when on auctions tab
+      return () => clearInterval(interval);
+    }
+  }, [activeTab, fetchDealsData]);
 
   // Auth Handlers
   const handleLogin = async () => {
@@ -199,7 +202,7 @@ export default function Home() {
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const initialFilterSkip = useRef(true);
 
-  const handleSearch = async (e?: React.FormEvent) => {
+  const handleSearch = async (e?: React.FormEvent, forceRefresh = false) => {
     if (e) e.preventDefault();
 
     // Cancel any pending debounced auto-search immediately to prevent double-firing
@@ -218,7 +221,20 @@ export default function Home() {
       return;
     }
 
-    const currentSig = `${query.trim()}_${tcg}_${filters.languages.join(',')}_${filters.categories.join(',')}_${filters.rarities.join(',')}_${filters.onlyUnowned}`;
+    // Base cache key: cache by game, category, rarities, and search text for 5-day local database
+    const baseCacheKey = `${tcg}_${(filters.categories || []).slice().sort().join('_') || 'all'}_${(filters.rarities || []).slice().sort().join('_') || 'all'}_${query.trim().toLowerCase() || 'all'}`;
+
+    if (!forceRefresh) {
+      const cached = getCachedCatalog(baseCacheKey);
+      if (cached && cached.length > 0) {
+        setSearchResults(cached);
+        setIsSearching(false);
+        setHasSearched(true);
+        return;
+      }
+    }
+
+    const currentSig = `${query.trim()}_${tcg}_${(filters.categories || []).sort().join(',')}_${(filters.rarities || []).sort().join(',')}_${forceRefresh ? Date.now() : ''}`;
     lastQuerySignatureRef.current = currentSig;
 
     setIsSearching(true);
@@ -290,8 +306,14 @@ export default function Home() {
 
       const res = await fetch(`/api/cards?${params.toString()}`);
       const json = await res.json();
-      setSearchResults(json.data || []);
-      if (!json.data || json.data.length === 0) {
+      const results = json.data || [];
+      setSearchResults(results);
+      if (results.length > 0) {
+        setCachedCatalog(baseCacheKey, results);
+        if (forceRefresh) {
+          showToast('Live market prices refreshed & saved for 5 days!', 'success');
+        }
+      } else {
         showToast('No cards found matching your criteria.', 'info');
       }
     } catch {
@@ -320,23 +342,22 @@ export default function Home() {
     }
   };
 
-  // Debounced auto-search when filters change so UI refreshes automatically without getting stuck
+  // Auto-fetch base catalog when primary query, game, category, or rarity changes.
   useEffect(() => {
     if (initialFilterSkip.current) {
       initialFilterSkip.current = false;
       return;
     }
 
-    const currentSig = `${query.trim()}_${tcg}_${filters.languages.join(',')}_${filters.categories.join(',')}_${filters.rarities.join(',')}_${filters.onlyUnowned}`;
-    if (currentSig === lastQuerySignatureRef.current) {
+    const currentBaseSig = `${query.trim()}_${tcg}_${(filters.categories || []).sort().join(',')}_${(filters.rarities || []).sort().join(',')}`;
+    if (currentBaseSig === lastQuerySignatureRef.current && searchResults.length > 0) {
       return;
     }
 
     const hasIntent =
       Boolean(query.trim()) ||
       (filters.categories && filters.categories.length > 0) ||
-      (filters.rarities && filters.rarities.length > 0) ||
-      (filters.languages && filters.languages.length > 0);
+      (filters.rarities && filters.rarities.length > 0);
 
     if (hasIntent) {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
@@ -347,7 +368,7 @@ export default function Home() {
     return () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     };
-  }, [filters, tcg]);
+  }, [query, tcg, filters.categories, filters.rarities]);
 
   const handleClearFilters = () => {
     setFilters({
@@ -713,6 +734,7 @@ export default function Home() {
                 }));
               }}
               onSearch={handleSearch}
+              onRefreshPrices={() => handleSearch(undefined, true)}
               isLoading={isSearching}
               filters={filters}
               onFilterChange={setFilters}
@@ -764,15 +786,20 @@ export default function Home() {
                 )}
               </div>
             ) : null}
-
-            {/* LIVE DEALS CAROUSELS */}
-            <DealSection
-              user={user}
-              onLogin={handleLogin}
-              deals={deals}
-              isLoading={dealsLoading}
-            />
           </div>
+        )}
+
+        {/* TAB: LIVE AUCTIONS */}
+        {activeTab === 'auctions' && (
+          <AuctionsTab
+            user={user}
+            onLogin={handleLogin}
+            deals={deals}
+            isLoading={dealsLoading}
+            tcg={tcg}
+            setTcg={setTcg}
+            onRefresh={fetchDealsData}
+          />
         )}
 
         {/* TAB 2: WISHLIST (FORMERLY TRACKED) */}

@@ -1,7 +1,7 @@
 'use client';
 
 import { DealRow } from './DealRow';
-import { Flame, Lock } from 'lucide-react';
+import { Flame, Lock, Sparkles, Trophy, Medal } from 'lucide-react';
 
 interface DealSectionProps {
   user: any;
@@ -64,7 +64,7 @@ export function DealSection({ user, onLogin, deals, isLoading }: DealSectionProp
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <span className="text-[11px] font-black text-white bg-gray-900 dark:bg-black border border-gray-700 rounded-lg px-2.5 py-1 inline-flex items-center gap-1.5 shadow-2xs">
-            <span>?</span> CGC / BGS Black Label &amp; Pristine 10s
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" /> CGC / BGS Black Label &amp; Pristine 10s
           </span>
         </div>
         <DealRow items={deals.blackLabel} isLoading={isLoading} />
@@ -74,7 +74,7 @@ export function DealSection({ user, onLogin, deals, isLoading }: DealSectionProp
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <span className="text-[11px] font-black text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 rounded-lg px-2.5 py-1 inline-flex items-center gap-1.5">
-            <span>??</span> PSA / CGC / BGS / TAG 10s
+            <Trophy className="w-3.5 h-3.5 text-amber-500" /> PSA / CGC / BGS / TAG 10s
           </span>
         </div>
         <DealRow items={deals.tens} isLoading={isLoading} />
@@ -84,7 +84,7 @@ export function DealSection({ user, onLogin, deals, isLoading }: DealSectionProp
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <span className="text-[11px] font-black text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 rounded-lg px-2.5 py-1 inline-flex items-center gap-1.5">
-            <span>??</span> PSA / CGC / BGS / TAG 9s
+            <Medal className="w-3.5 h-3.5 text-blue-500" /> PSA / CGC / BGS / TAG 9s
           </span>
         </div>
         <DealRow items={deals.nines} isLoading={isLoading} />
