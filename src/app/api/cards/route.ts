@@ -2,7 +2,15 @@ import { NextResponse } from 'next/server';
 import { searchEbay } from '../utils/ebay'; 
 import { searchTcgdexCards } from '@/lib/tcgdex';
 import { CardLanguage, MultiLangPrice, SearchCardResult } from '@/lib/types';
-import { translateJapaneseCardName, findEnglishCounterpart, isTrueJapaneseExclusive } from '@/lib/jpTranslations';
+import { translateJapaneseCardName, findEnglishCounterpart } from '@/lib/jpTranslations';
+import {
+  isTrueJapaneseExclusive,
+  isTrueChineseExclusive,
+  isTrueExclusive,
+  getCardEra,
+  matchSpecialType,
+  CURATED_TRUE_EXCLUSIVES
+} from '@/lib/exclusiveRegistry';
 import { getKnownCardPrice } from '@/lib/knownPrices';
 
 // In-Memory cache for JustTCG to conserve limited user API query credits
@@ -291,6 +299,10 @@ export async function GET(request: Request) {
     const trainerType = searchParams.get('trainerType') || '';
     const rarityParam = searchParams.get('rarity') || '';
     const rarities = rarityParam ? rarityParam.split(',').map((r) => r.trim()).filter(Boolean) : [];
+    const erasParam = searchParams.get('eras') || '';
+    const eras = erasParam ? erasParam.split(',').map((e) => e.trim()).filter(Boolean) : [];
+    const specialTypesParam = searchParams.get('specialTypes') || '';
+    const specialTypes = specialTypesParam ? specialTypesParam.split(',').map((s) => s.trim()).filter(Boolean) : [];
     const languagesParam = searchParams.get('languages') || '';
     const requestedLanguages = languagesParam
       ? (languagesParam.split(',').map((l) => l.trim().toLowerCase()).filter(Boolean) as CardLanguage[])
@@ -298,9 +310,40 @@ export async function GET(request: Request) {
     const limit = parseInt(searchParams.get('limit') || '1000', 10);
     const API_KEY = process.env.JUSTTCG_API_KEY;
 
-    const hasSearchIntent = Boolean(q.trim() || category || trainerType || rarities.length > 0);
+    const hasSearchIntent = Boolean(
+      q.trim() ||
+      category ||
+      trainerType ||
+      rarities.length > 0 ||
+      eras.length > 0 ||
+      specialTypes.length > 0
+    );
     if (!hasSearchIntent) {
       return NextResponse.json({ data: [] });
+    }
+
+    let effectiveQuery = q.trim();
+    let effectiveCategory = category;
+
+    if (!effectiveQuery && specialTypes.length > 0) {
+      if (specialTypes.includes('stamped-promos') || specialTypes.includes('burgerchu-stamped')) effectiveQuery = 'Promo';
+      else if (specialTypes.includes('gold-star')) effectiveQuery = 'Star';
+      else if (specialTypes.includes('prime')) effectiveQuery = 'Prime';
+      else if (specialTypes.includes('lv-x')) effectiveQuery = 'LV.X';
+      else if (specialTypes.includes('legend')) effectiveQuery = 'LEGEND';
+      else if (specialTypes.includes('tag-team')) effectiveQuery = 'GX';
+      else if (specialTypes.includes('m-ex')) effectiveQuery = 'Mega';
+      else if (specialTypes.includes('radiant')) effectiveQuery = 'Radiant';
+      else if (specialTypes.includes('amazing-rare')) effectiveQuery = 'Amazing';
+      else if (specialTypes.includes('prism-star')) effectiveQuery = 'Prism';
+      else if (specialTypes.includes('ace-spec')) effectiveQuery = 'ACE SPEC';
+      else if (specialTypes.includes('classic-ex')) effectiveQuery = 'ex';
+      else if (specialTypes.includes('vmax-vstar')) effectiveQuery = 'VMAX';
+      else if (specialTypes.includes('break')) effectiveQuery = 'BREAK';
+    }
+
+    if (!effectiveQuery && !effectiveCategory && eras.length > 0 && rarities.length === 0) {
+      effectiveCategory = 'Pokemon';
     }
 
     const wantEn = requestedLanguages.includes('en') || (requestedLanguages.length === 0 && game === 'pokemon');
@@ -322,8 +365,8 @@ export async function GET(request: Request) {
 
       promises.push(
         searchTcgdexCards({
-          query: q,
-          category,
+          query: effectiveQuery,
+          category: effectiveCategory,
           trainerType,
           rarities: enRarities,
           limit,
@@ -348,8 +391,8 @@ export async function GET(request: Request) {
             // Include 'None' and 'Super Rare' so they are retrieved and their true rarities inferred!
             const jaRarities = rarities.length > 0 ? [...rarities, 'None', 'Super Rare'] : [];
             const tcgdexJa = await searchTcgdexCards({
-              query: q,
-              category,
+              query: effectiveQuery,
+              category: effectiveCategory,
               trainerType,
               rarities: jaRarities,
               limit: Math.min(limit, 400),
@@ -434,8 +477,8 @@ export async function GET(request: Request) {
     if (wantKo) {
       promises.push(
         searchTcgdexCards({
-          query: q,
-          category,
+          query: effectiveQuery,
+          category: effectiveCategory,
           trainerType,
           rarities,
           limit: Math.min(limit, 100),
@@ -457,8 +500,8 @@ export async function GET(request: Request) {
     if (wantZh) {
       promises.push(
         searchTcgdexCards({
-          query: q,
-          category,
+          query: effectiveQuery,
+          category: effectiveCategory,
           trainerType,
           rarities,
           limit: Math.min(limit, 100),
@@ -467,7 +510,7 @@ export async function GET(request: Request) {
           cards.map((c) => ({
             ...c,
             language: 'zh' as const,
-            isExclusive: false,
+            isExclusive: isTrueChineseExclusive(c),
             pricingSource: c.pricingSource || 'Asian Comps'
           }))
         ).catch(() => [])
@@ -602,11 +645,22 @@ export async function GET(request: Request) {
       }
     }
 
-    // 4. Add Chinese cards
+    // 4. Add Chinese cards: only mark as exclusive if strictly verified by isTrueChineseExclusive
     for (const card of zhResults) {
+      const isZhExclusive = isTrueChineseExclusive(card);
+      const displayName = isZhExclusive
+        ? (card.name.includes('[ZH Exclusive]') ? card.name : `${card.name} [ZH Exclusive]`)
+        : card.name.replace(/\s*\[ZH Exclusive\]/gi, '');
+
       const key = `zh-${card.id}`;
       if (!combinedMap.has(key)) {
-        combinedMap.set(key, card);
+        combinedMap.set(key, {
+          ...card,
+          name: displayName,
+          isExclusive: isZhExclusive,
+          language: 'zh',
+          pricingSource: card.pricingSource || 'Asian Comps'
+        });
       }
     }
 
@@ -615,6 +669,44 @@ export async function GET(request: Request) {
       const key = `op-${card.id}`;
       if (!combinedMap.has(key)) {
         combinedMap.set(key, card);
+      }
+    }
+
+    // 6. Merge matching curated true exclusives (McDonald's Burgerchu, Gem Pack, Scream, Poncho, Stamp Box, etc.)
+    for (const curated of CURATED_TRUE_EXCLUSIVES) {
+      if (curated.language === 'ja' && !wantJa) continue;
+      if (curated.language === 'zh' && !wantZh) continue;
+      if (curated.language === 'en' && !wantEn) continue;
+
+      if (q.trim()) {
+        const qLower = q.trim().toLowerCase();
+        const matchesQuery =
+          curated.name.toLowerCase().includes(qLower) ||
+          (curated.setName && curated.setName.toLowerCase().includes(qLower)) ||
+          curated.id.toLowerCase().includes(qLower);
+        if (!matchesQuery) continue;
+      }
+
+      if (category) {
+        const catLower = category.toLowerCase();
+        if (catLower.includes('trainer') && !curated.category?.toLowerCase().includes('trainer')) {
+          continue;
+        }
+      }
+
+      if (eras.length > 0) {
+        const era = getCardEra(curated.id, curated.setName);
+        if (!eras.includes(era)) continue;
+      }
+
+      if (specialTypes.length > 0) {
+        const matchesAnySpecial = specialTypes.some((st) => matchSpecialType(curated, st));
+        if (!matchesAnySpecial) continue;
+      }
+
+      const key = `${curated.language || 'en'}-${curated.id}`;
+      if (!combinedMap.has(key)) {
+        combinedMap.set(key, curated);
       }
     }
 

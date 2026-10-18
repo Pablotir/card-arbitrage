@@ -91,6 +91,8 @@ export interface SearchFilterState {
   rarities: string[]; // Multi-select: 'Ultra Rare', 'Special Illustration Rare', etc.
   conditions: string[]; // Multi-select: 'Near Mint', 'Lightly Played', etc.
   printings: string[]; // Multi-select: 'Normal', 'Holofoil', '1st Edition', etc.
+  eras?: string[]; // Multi-select: 'sv', 'swsh', 'sm', 'xy', 'bw', 'hgss', 'dp', 'ex', 'neo', 'vintage'
+  specialTypes?: string[]; // Multi-select: 'gold-star', 'prime', 'lv-x', 'legend', 'tag-team', 'sir', etc.
   setName: string;
   onlyUnowned: boolean; // "Missing from Collection" / "Cards I don't have"
 }

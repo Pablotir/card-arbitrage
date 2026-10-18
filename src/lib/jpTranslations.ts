@@ -370,58 +370,10 @@ export function isHighRarityCard(rarity?: string, name?: string): boolean {
   );
 }
 
-/**
- * Verified whitelist of true Japanese-exclusive cards that never had an English equivalent.
- * Only cards satisfying these specific checks may be marked as `isExclusive = true`.
- */
-export const TRUE_JP_EXCLUSIVE_IDS = new Set<string>([
-  // Extra Battle Day Promos
-  'sm-p-395', // Extra Battle Day Acerola (395/SM-P)
-  'sm-p-396', // Extra Battle Day Guzma (396/SM-P)
-  'sm-p-397', // Extra Battle Day Lillie (397/SM-P)
-  'sm-p-398', // Extra Battle Day N (398/SM-P)
-  'sm-p-399', // Extra Battle Day Gladion (399/SM-P)
-  // Masked Royal Promos
-  'sm-p-064',
-  'sm-p-100',
-  // Alolan Friends Promo
-  'sm-p-401',
-  // Team Skull Grunt Promo
-  'sm-p-013',
-  // Tag All Stars Exclusive Full Arts (Misty & Lorelei 191, Sightseer 192)
-  'sm12a-191',
-  'sm12a-192',
-  // Post Office / Stamp Box Promos
-  's-p-226',
-  's-p-227'
-]);
-
-export function isTrueJapaneseExclusive(card: { id?: string; name?: string; localId?: string; set?: { id?: string } }): boolean {
-  if (!card) return false;
-  const idNorm = (card.id || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
-  const localId = (card.localId || '').trim();
-  const nameLower = (card.name || '').toLowerCase();
-
-  // 1. Direct ID match
-  if (TRUE_JP_EXCLUSIVE_IDS.has(idNorm)) return true;
-
-  // 2. Extra Battle Day or Masked Royal or Alolan Friends
-  if (nameLower.includes('alolan friends') || nameLower.includes('アローラの仲間たち')) return true;
-  if (nameLower.includes('masked royal') || nameLower.includes('ロイヤルマスク')) return true;
-
-  // 3. Tag All Stars exclusive Full Arts (Misty & Lorelei 191, Sightseer 192)
-  const setIdNorm = (card.set?.id || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
-  if (idNorm.includes('sm12a') || setIdNorm.includes('sm12a')) {
-    if (localId === '191' || localId === '192') return true;
-  }
-
-  // 4. Extra Battle Day promo numbers
-  if (idNorm.includes('sm-p') || idNorm.includes('smp')) {
-    if (['395', '396', '397', '398', '399', '401', '064', '100'].includes(localId)) return true;
-  }
-
-  return false;
-}
+export {
+  TRUE_JP_EXCLUSIVE_IDS,
+  isTrueJapaneseExclusive
+} from './exclusiveRegistry';
 
 /**
  * Translates a Japanese card name to English using dictionary matches or partial matches.

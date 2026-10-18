@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { SearchFilterState, CardLanguage } from '@/lib/types';
-import { ChevronDown, X, Check, Sparkles, Filter, EyeOff } from 'lucide-react';
+import { POKEMON_ERAS, SPECIAL_CARD_TYPES } from '@/lib/exclusiveRegistry';
+import { ChevronDown, X, Check, Sparkles, Filter, EyeOff, Calendar, Flame, Layers } from 'lucide-react';
 
 interface FilterBarProps {
   filters: SearchFilterState;
@@ -126,7 +127,39 @@ export function FilterBar({
         'Character Rare',
         'Full Art Trainer'
       ],
+      eras: [],
+      specialTypes: [],
       onlyUnowned: true
+    });
+    if (onApplySearch) setTimeout(onApplySearch, 50);
+  };
+
+  // Quick Preset: Classic Holy Grails (Gold Stars, Primes, LV.X)
+  const handlePresetVintageGrails = () => {
+    onChange({
+      ...filters,
+      languages: ['en', 'ja'],
+      specialTypes: ['gold-star', 'prime', 'lv-x', 'legend', 'shining-crystal', 'classic-ex']
+    });
+    if (onApplySearch) setTimeout(onApplySearch, 50);
+  };
+
+  // Quick Preset: Stamped & Collaboration Promos (Food & Non-Food)
+  const handlePresetStampedPromos = () => {
+    onChange({
+      ...filters,
+      languages: ['en', 'ja', 'zh'],
+      specialTypes: ['stamped-promos', 'exclusives-only']
+    });
+    if (onApplySearch) setTimeout(onApplySearch, 50);
+  };
+
+  // Quick Preset: Tag Team & Alt Arts
+  const handlePresetTagTeamAltArts = () => {
+    onChange({
+      ...filters,
+      languages: ['en', 'ja'],
+      specialTypes: ['tag-team', 'alt-art', 'sir']
     });
     if (onApplySearch) setTimeout(onApplySearch, 50);
   };
@@ -145,6 +178,8 @@ export function FilterBar({
     (filters.languages?.length || 0) +
     (filters.categories?.length || 0) +
     (filters.rarities?.length || 0) +
+    (filters.eras?.length || 0) +
+    (filters.specialTypes?.length || 0) +
     (filters.conditions?.length || 0) +
     (filters.printings?.length || 0) +
     (filters.onlyUnowned ? 1 : 0);
@@ -162,14 +197,35 @@ export function FilterBar({
           onClick={handlePresetFullArtTrainers}
           className="bg-purple-50 dark:bg-purple-950/50 hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/80 px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1 shadow-2xs"
         >
-          <span>🌟 Full Art Trainers I Don&apos;t Have</span>
+          <span>🌟 Full Art Trainers (Unowned)</span>
+        </button>
+        <button
+          type="button"
+          onClick={handlePresetVintageGrails}
+          className="bg-amber-50 dark:bg-amber-950/50 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/80 px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1 shadow-2xs"
+        >
+          <span>★ Gold Stars, Primes &amp; LV.X</span>
+        </button>
+        <button
+          type="button"
+          onClick={handlePresetStampedPromos}
+          className="bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/80 px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1 shadow-2xs"
+        >
+          <span>🏷️ Stamped Promos &amp; Collabs</span>
+        </button>
+        <button
+          type="button"
+          onClick={handlePresetTagTeamAltArts}
+          className="bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80 px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1 shadow-2xs"
+        >
+          <span>🤝 Tag Team &amp; Alt Arts</span>
         </button>
         <button
           type="button"
           onClick={handlePresetAllLanguages}
           className="bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/80 px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1 shadow-2xs"
         >
-          <span>🌐 Compare All 4 Languages (EN, JP, KR, ZH)</span>
+          <span>🌐 Compare 4 Languages (EN, JP, KR, ZH)</span>
         </button>
       </div>
 
@@ -221,13 +277,13 @@ export function FilterBar({
                 )}
               </div>
               <div className="pt-1 space-y-0.5">
-                {LANGUAGE_OPTIONS.map((lang) => {
-                  const isChecked = filters.languages?.includes(lang.id);
+                {LANGUAGE_OPTIONS.map((opt) => {
+                  const isChecked = filters.languages?.includes(opt.id);
                   return (
                     <button
-                      key={lang.id}
+                      key={opt.id}
                       type="button"
-                      onClick={() => toggleArrayItem('languages', lang.id)}
+                      onClick={() => toggleArrayItem('languages', opt.id)}
                       className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between transition ${
                         isChecked
                           ? 'bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 font-semibold'
@@ -235,8 +291,8 @@ export function FilterBar({
                       }`}
                     >
                       <span className="flex items-center gap-1.5">
-                        <span>{lang.flag}</span>
-                        <span>{lang.label}</span>
+                        <span>{opt.flag}</span>
+                        <span>{opt.label}</span>
                       </span>
                       <div
                         className={`w-4 h-4 rounded border flex items-center justify-center ${
@@ -255,7 +311,7 @@ export function FilterBar({
           )}
         </div>
 
-        {/* 2. Category / Subtype Multi-Select Dropdown */}
+        {/* 2. Category Multi-Select Dropdown */}
         <div className="relative">
           <button
             type="button"
@@ -266,7 +322,7 @@ export function FilterBar({
                 : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:border-gray-300'
             }`}
           >
-            <span>Card Type</span>
+            <span>Category</span>
             {filters.categories?.length > 0 && (
               <span className="bg-blue-600 text-white rounded-full px-1.5 py-0.2 text-[10px] font-extrabold">
                 {filters.categories.length}
@@ -276,9 +332,9 @@ export function FilterBar({
           </button>
 
           {openDropdown === 'categories' && (
-            <div className="absolute left-0 top-full mt-1.5 w-60 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-30 p-2 space-y-1 text-xs">
+            <div className="absolute left-0 top-full mt-1.5 w-52 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-30 p-2 space-y-1 text-xs">
               <div className="flex items-center justify-between px-2 pb-1.5 border-b border-gray-100 dark:border-gray-700">
-                <span className="font-bold text-gray-700 dark:text-gray-300">Select Types</span>
+                <span className="font-bold text-gray-700 dark:text-gray-300">Card Category</span>
                 {filters.categories?.length > 0 && (
                   <button
                     type="button"
@@ -344,7 +400,7 @@ export function FilterBar({
           {openDropdown === 'rarities' && (
             <div className="absolute left-0 top-full mt-1.5 w-64 max-h-80 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-30 p-2 space-y-1 text-xs">
               <div className="flex items-center justify-between px-2 pb-1.5 border-b border-gray-100 dark:border-gray-700">
-                <span className="font-bold text-gray-700 dark:text-gray-300">Select Rarities</span>
+                <span className="font-bold text-gray-700 dark:text-gray-300">Card Rarities</span>
                 {filters.rarities?.length > 0 && (
                   <button
                     type="button"
@@ -369,9 +425,9 @@ export function FilterBar({
                           : 'hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'
                       }`}
                     >
-                      <span>{r}</span>
+                      <span className="truncate">{r}</span>
                       <div
-                        className={`w-4 h-4 rounded border flex items-center justify-center ${
+                        className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
                           isChecked
                             ? 'bg-blue-600 border-blue-600 text-white'
                             : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900'
@@ -387,7 +443,147 @@ export function FilterBar({
           )}
         </div>
 
-        {/* 4. Condition Multi-Select Dropdown */}
+        {/* 4. Eras & Generations Multi-Select Dropdown */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => toggleDropdown('eras')}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition shadow-2xs ${
+              (filters.eras?.length || 0) > 0
+                ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-bold'
+                : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:border-gray-300'
+            }`}
+          >
+            <Calendar className="w-3.5 h-3.5 text-indigo-500" />
+            <span>Era / Gen</span>
+            {(filters.eras?.length || 0) > 0 && (
+              <span className="bg-indigo-600 text-white rounded-full px-1.5 py-0.2 text-[10px] font-extrabold">
+                {filters.eras!.length}
+              </span>
+            )}
+            <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+          </button>
+
+          {openDropdown === 'eras' && (
+            <div className="absolute left-0 top-full mt-1.5 w-72 max-h-80 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-30 p-2 space-y-1 text-xs">
+              <div className="flex items-center justify-between px-2 pb-1.5 border-b border-gray-100 dark:border-gray-700">
+                <span className="font-bold text-gray-700 dark:text-gray-300">Eras &amp; Generations</span>
+                {(filters.eras?.length || 0) > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onChange({ ...filters, eras: [] })}
+                    className="text-indigo-600 hover:underline text-[11px]"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div className="pt-1 space-y-0.5">
+                {POKEMON_ERAS.map((era) => {
+                  const isChecked = filters.eras?.includes(era.id);
+                  return (
+                    <button
+                      key={era.id}
+                      type="button"
+                      onClick={() => toggleArrayItem('eras', era.id)}
+                      className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between transition ${
+                        isChecked
+                          ? 'bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 font-semibold'
+                          : 'hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'
+                      }`}
+                    >
+                      <div className="flex flex-col min-w-0 pr-2">
+                        <span className="font-medium truncate">{era.name}</span>
+                        <span className="text-[10px] text-gray-400">{era.years}</span>
+                      </div>
+                      <div
+                        className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                          isChecked
+                            ? 'bg-indigo-600 border-indigo-600 text-white'
+                            : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900'
+                        }`}
+                      >
+                        {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 5. Special Cards & Mechanics Multi-Select Dropdown */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => toggleDropdown('specialTypes')}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition shadow-2xs ${
+              (filters.specialTypes?.length || 0) > 0
+                ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-bold'
+                : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:border-gray-300'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span>Special Types</span>
+            {(filters.specialTypes?.length || 0) > 0 && (
+              <span className="bg-amber-600 text-white rounded-full px-1.5 py-0.2 text-[10px] font-extrabold">
+                {filters.specialTypes!.length}
+              </span>
+            )}
+            <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+          </button>
+
+          {openDropdown === 'specialTypes' && (
+            <div className="absolute left-0 top-full mt-1.5 w-80 max-h-84 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-30 p-2 space-y-1 text-xs">
+              <div className="flex items-center justify-between px-2 pb-1.5 border-b border-gray-100 dark:border-gray-700">
+                <span className="font-bold text-gray-700 dark:text-gray-300">Special Cards &amp; Mechanics</span>
+                {(filters.specialTypes?.length || 0) > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onChange({ ...filters, specialTypes: [] })}
+                    className="text-amber-600 hover:underline text-[11px]"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div className="pt-1 space-y-0.5">
+                {SPECIAL_CARD_TYPES.map((st) => {
+                  const isChecked = filters.specialTypes?.includes(st.id);
+                  return (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => toggleArrayItem('specialTypes', st.id)}
+                      className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between transition ${
+                        isChecked
+                          ? 'bg-amber-50 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 font-semibold'
+                          : 'hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'
+                      }`}
+                    >
+                      <div className="flex flex-col min-w-0 pr-2">
+                        <span className="font-bold text-xs truncate">{st.label}</span>
+                        <span className="text-[10px] text-gray-400 leading-tight line-clamp-1">{st.era}</span>
+                      </div>
+                      <div
+                        className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                          isChecked
+                            ? 'bg-amber-600 border-amber-600 text-white'
+                            : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900'
+                        }`}
+                      >
+                        {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 6. Condition Multi-Select Dropdown */}
         <div className="relative">
           <button
             type="button"
@@ -453,7 +649,7 @@ export function FilterBar({
           )}
         </div>
 
-        {/* 5. Printing Multi-Select Dropdown */}
+        {/* 7. Printing Multi-Select Dropdown */}
         <div className="relative">
           <button
             type="button"
@@ -476,7 +672,7 @@ export function FilterBar({
           {openDropdown === 'printings' && (
             <div className="absolute left-0 top-full mt-1.5 w-52 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-30 p-2 space-y-1 text-xs">
               <div className="flex items-center justify-between px-2 pb-1.5 border-b border-gray-100 dark:border-gray-700">
-                <span className="font-bold text-gray-700 dark:text-gray-300">Printings</span>
+                <span className="font-bold text-gray-700 dark:text-gray-300">Printing / Foil</span>
                 {filters.printings?.length > 0 && (
                   <button
                     type="button"
@@ -519,7 +715,7 @@ export function FilterBar({
           )}
         </div>
 
-        {/* 6. Missing from Collection ("Cards I Don't Have") Toggle */}
+        {/* 8. Missing from Collection ("Cards I Don't Have") Toggle */}
         <button
           type="button"
           onClick={() => onChange({ ...filters, onlyUnowned: !filters.onlyUnowned })}
@@ -608,6 +804,50 @@ export function FilterBar({
               </button>
             </span>
           ))}
+
+          {/* Era Chips */}
+          {filters.eras?.map((eraId) => {
+            const era = POKEMON_ERAS.find((e) => e.id === eraId);
+            return (
+              <span
+                key={eraId}
+                className="inline-flex items-center gap-1.5 border border-indigo-500/60 bg-indigo-50/80 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 px-2.5 py-1 rounded-lg text-xs font-semibold"
+              >
+                <Calendar className="w-3 h-3" />
+                <span>{era?.name || eraId.toUpperCase()}</span>
+                <button
+                  type="button"
+                  onClick={() => toggleArrayItem('eras', eraId)}
+                  className="hover:text-indigo-900 dark:hover:text-indigo-100 p-0.5"
+                  aria-label={`Remove ${era?.name} filter`}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            );
+          })}
+
+          {/* Special Types Chips */}
+          {filters.specialTypes?.map((typeId) => {
+            const st = SPECIAL_CARD_TYPES.find((s) => s.id === typeId);
+            return (
+              <span
+                key={typeId}
+                className="inline-flex items-center gap-1.5 border border-amber-500/60 bg-amber-50/80 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 px-2.5 py-1 rounded-lg text-xs font-semibold"
+              >
+                <Sparkles className="w-3 h-3 text-amber-500" />
+                <span>{st?.label || typeId}</span>
+                <button
+                  type="button"
+                  onClick={() => toggleArrayItem('specialTypes', typeId)}
+                  className="hover:text-amber-900 dark:hover:text-amber-100 p-0.5"
+                  aria-label={`Remove ${st?.label} filter`}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            );
+          })}
 
           {/* Condition Chips */}
           {filters.conditions?.map((c) => (

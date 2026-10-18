@@ -23,6 +23,7 @@ import { SniperRuleModal } from '@/components/sniper/SniperRuleModal';
 import { ToastContainer, ToastMessage } from '@/components/ui/Toast';
 import { formatCurrency } from '@/utils/format';
 import { getCachedCatalog, setCachedCatalog } from '@/lib/cardCatalogCache';
+import { getCardEra, matchSpecialType } from '@/lib/exclusiveRegistry';
 
 export default function Home() {
   const { theme, toggleTheme, mounted: themeMounted } = useTheme();
@@ -44,6 +45,8 @@ export default function Home() {
     rarities: [],
     conditions: [],
     printings: [],
+    eras: [],
+    specialTypes: [],
     setName: '',
     onlyUnowned: false
   });
@@ -214,15 +217,17 @@ export default function Home() {
     const hasCategories = (filters.categories?.length || 0) > 0;
     const hasRarities = (filters.rarities?.length || 0) > 0;
     const hasLanguages = (filters.languages?.length || 0) > 0;
+    const hasEras = (filters.eras?.length || 0) > 0;
+    const hasSpecialTypes = (filters.specialTypes?.length || 0) > 0;
     const hasQuery = Boolean(query.trim());
 
-    if (!hasQuery && !hasCategories && !hasRarities) {
-      showToast('Please enter a search term or select filters (e.g. Full Art Trainers).', 'info');
+    if (!hasQuery && !hasCategories && !hasRarities && !hasEras && !hasSpecialTypes) {
+      showToast('Please enter a search term or select filters (e.g. Full Art Trainers, Gold Stars).', 'info');
       return;
     }
 
-    // Base cache key: cache by game, category, rarities, and search text for 5-day local database
-    const baseCacheKey = `${tcg}_${(filters.categories || []).slice().sort().join('_') || 'all'}_${(filters.rarities || []).slice().sort().join('_') || 'all'}_${query.trim().toLowerCase() || 'all'}`;
+    // Base cache key: cache by game, category, rarities, eras, specialTypes, and search text for 5-day local database
+    const baseCacheKey = `${tcg}_${(filters.categories || []).slice().sort().join('_') || 'all'}_${(filters.rarities || []).slice().sort().join('_') || 'all'}_${(filters.eras || []).slice().sort().join('_') || 'all'}_${(filters.specialTypes || []).slice().sort().join('_') || 'all'}_${query.trim().toLowerCase() || 'all'}`;
 
     if (!forceRefresh) {
       const cached = getCachedCatalog(baseCacheKey);
@@ -234,7 +239,7 @@ export default function Home() {
       }
     }
 
-    const currentSig = `${query.trim()}_${tcg}_${(filters.categories || []).sort().join(',')}_${(filters.rarities || []).sort().join(',')}_${forceRefresh ? Date.now() : ''}`;
+    const currentSig = `${query.trim()}_${tcg}_${(filters.categories || []).sort().join(',')}_${(filters.rarities || []).sort().join(',')}_${(filters.eras || []).sort().join(',')}_${(filters.specialTypes || []).sort().join(',')}_${forceRefresh ? Date.now() : ''}`;
     lastQuerySignatureRef.current = currentSig;
 
     setIsSearching(true);
@@ -304,6 +309,14 @@ export default function Home() {
         params.set('rarity', filters.rarities.join(','));
       }
 
+      if (hasEras) {
+        params.set('eras', filters.eras!.join(','));
+      }
+
+      if (hasSpecialTypes) {
+        params.set('specialTypes', filters.specialTypes!.join(','));
+      }
+
       const res = await fetch(`/api/cards?${params.toString()}`);
       const json = await res.json();
       const results = json.data || [];
@@ -342,14 +355,14 @@ export default function Home() {
     }
   };
 
-  // Auto-fetch base catalog when primary query, game, category, or rarity changes.
+  // Auto-fetch base catalog when primary query, game, category, rarity, era, or special type changes.
   useEffect(() => {
     if (initialFilterSkip.current) {
       initialFilterSkip.current = false;
       return;
     }
 
-    const currentBaseSig = `${query.trim()}_${tcg}_${(filters.categories || []).sort().join(',')}_${(filters.rarities || []).sort().join(',')}`;
+    const currentBaseSig = `${query.trim()}_${tcg}_${(filters.categories || []).sort().join(',')}_${(filters.rarities || []).sort().join(',')}_${(filters.eras || []).sort().join(',')}_${(filters.specialTypes || []).sort().join(',')}`;
     if (currentBaseSig === lastQuerySignatureRef.current && searchResults.length > 0) {
       return;
     }
@@ -357,7 +370,9 @@ export default function Home() {
     const hasIntent =
       Boolean(query.trim()) ||
       (filters.categories && filters.categories.length > 0) ||
-      (filters.rarities && filters.rarities.length > 0);
+      (filters.rarities && filters.rarities.length > 0) ||
+      (filters.eras && filters.eras.length > 0) ||
+      (filters.specialTypes && filters.specialTypes.length > 0);
 
     if (hasIntent) {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
@@ -368,7 +383,7 @@ export default function Home() {
     return () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     };
-  }, [query, tcg, filters.categories, filters.rarities]);
+  }, [query, tcg, filters.categories, filters.rarities, filters.eras, filters.specialTypes]);
 
   const handleClearFilters = () => {
     setFilters({
@@ -378,7 +393,9 @@ export default function Home() {
       conditions: [],
       printings: [],
       setName: '',
-      onlyUnowned: false
+      onlyUnowned: false,
+      eras: [],
+      specialTypes: []
     });
   };
 
@@ -482,8 +499,23 @@ export default function Home() {
       });
     }
 
+    // Filter by Eras multi-select
+    if (filters.eras && filters.eras.length > 0) {
+      list = list.filter((card) => {
+        const era = getCardEra(card.id, card.setName);
+        return filters.eras!.includes(era);
+      });
+    }
+
+    // Filter by Special Types / Mechanics multi-select
+    if (filters.specialTypes && filters.specialTypes.length > 0) {
+      list = list.filter((card) => {
+        return filters.specialTypes!.some((typeId) => matchSpecialType(card, typeId));
+      });
+    }
+
     return list;
-  }, [searchResults, filters.onlyUnowned, filters.categories, filters.rarities, filters.languages, myCollection, myList]);
+  }, [searchResults, filters.onlyUnowned, filters.categories, filters.rarities, filters.languages, filters.eras, filters.specialTypes, myCollection, myList]);
 
   // Add Card to Wishlist (Tracked)
   const handleAddWishlist = async (card: SearchCardResult) => {
