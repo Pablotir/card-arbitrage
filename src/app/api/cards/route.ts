@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { searchEbay } from '../utils/ebay'; 
 import { searchTcgdexCards } from '@/lib/tcgdex';
 import { CardLanguage, MultiLangPrice, SearchCardResult } from '@/lib/types';
-import { translateJapaneseCardName, findEnglishCounterpart } from '@/lib/jpTranslations';
+import { translateJapaneseCardName, findEnglishCounterpart, isTrueJapaneseExclusive } from '@/lib/jpTranslations';
 import { getKnownCardPrice } from '@/lib/knownPrices';
 
 // In-Memory cache for JustTCG to conserve limited user API query credits
@@ -314,12 +314,18 @@ export async function GET(request: Request) {
 
     // A. English via TCGdex (Full set coverage, TCGPlayer pricing)
     if (wantEn) {
+      const enRarities = rarities.length > 0
+        ? (rarities.includes('Ultra Rare') && (category === 'Trainer' || trainerType)
+          ? [...rarities, 'Shiny rare']
+          : rarities)
+        : [];
+
       promises.push(
         searchTcgdexCards({
           query: q,
           category,
           trainerType,
-          rarities,
+          rarities: enRarities,
           limit,
           lang: 'en'
         }).then((cards) => attachMultiLanguagePrices(cards, requestedLanguages))
@@ -353,7 +359,7 @@ export async function GET(request: Request) {
               jaCards.push({
                 ...c,
                 language: 'ja',
-                isExclusive: true,
+                isExclusive: isTrueJapaneseExclusive(c),
                 pricingSource: c.pricingSource || 'Cardmarket'
               });
             }
@@ -406,7 +412,7 @@ export async function GET(request: Request) {
                       rarity: c.rarity,
                       game: 'pokemon-japan',
                       language: 'ja',
-                      isExclusive: true,
+                      isExclusive: isTrueJapaneseExclusive(c),
                       pricingSource: 'JustTCG'
                     });
                   }
@@ -438,7 +444,7 @@ export async function GET(request: Request) {
           cards.map((c) => ({
             ...c,
             language: 'ko' as const,
-            isExclusive: true,
+            isExclusive: false,
             pricingSource: c.pricingSource || 'Asian Comps'
           }))
         ).catch(() => [])
@@ -461,7 +467,7 @@ export async function GET(request: Request) {
           cards.map((c) => ({
             ...c,
             language: 'zh' as const,
-            isExclusive: true,
+            isExclusive: false,
             pricingSource: c.pricingSource || 'Asian Comps'
           }))
         ).catch(() => [])
@@ -568,19 +574,23 @@ export async function GET(request: Request) {
           }
         }
       } else {
-        // True Japanese Exclusive without an English release!
+        // Japanese card without an English counterpart in this query batch:
+        // Only mark as [JP Exclusive] if verified against the true exclusive whitelist.
         const { englishName, isTranslated } = translateJapaneseCardName(card.name);
-        const displayName = isTranslated ? `${englishName} [JP Exclusive]` : `${card.name} [JP Exclusive]`;
+        const isTrueExclusive = isTrueJapaneseExclusive(card);
+        const displayName = isTrueExclusive
+          ? (isTranslated ? `${englishName} [JP Exclusive]` : `${card.name} [JP Exclusive]`)
+          : (isTranslated ? englishName : card.name);
 
-        const exclusiveCard: SearchCardResult = {
+        const jaCardToAdd: SearchCardResult = {
           ...card,
           name: displayName,
           game: 'pokemon-japan',
           language: 'ja',
-          isExclusive: true
+          isExclusive: isTrueExclusive
         };
 
-        combinedMap.set(`ja-${card.id}`, exclusiveCard);
+        combinedMap.set(`ja-${card.id}`, jaCardToAdd);
       }
     }
 

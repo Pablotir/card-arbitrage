@@ -191,8 +191,11 @@ export async function searchTcgdexCards(
     // Prioritize modern Scarlet & Violet and Sword & Shield sets first before vintage
     const sortedItems = items.slice().sort((a, b) => getEraPriority(b.id) - getEraPriority(a.id));
 
-    // Allow fetching sufficient candidates to meet requested limit
-    const fetchCount = trainerType ? Math.min(sortedItems.length, limit * 2) : Math.min(sortedItems.length, limit);
+    // When specific rarities are selected, the list is already filtered to high rarities (~400 cards).
+    // Fetch all candidates up to 1000 so earlier eras (like Sun & Moon full arts) are not truncated.
+    const fetchCount = rarities.length > 0
+      ? Math.min(sortedItems.length, Math.max(limit, 1000))
+      : (trainerType ? Math.min(sortedItems.length, limit * 2) : Math.min(sortedItems.length, limit));
     const topItems = sortedItems.slice(0, fetchCount);
 
     // Fetch details in concurrent chunks of 60 with in-memory caching
