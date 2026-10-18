@@ -1,6 +1,7 @@
 import { SearchCardResult, SetInfo } from './types';
 import { getKnownCardPrice } from './knownPrices';
 import { translateAsianCardName } from './asianTranslations';
+import { getEnglishSetName } from './setEquivalents';
 
 const TCGDEX_ROOT = 'https://api.tcgdex.net/v2';
 
@@ -355,13 +356,15 @@ export async function searchTcgdexCards(
           const rawCardName = d.name || item.name || '';
           const { englishName, isTranslated } = translateAsianCardName(rawCardName);
           const finalName = isTranslated ? englishName : rawCardName;
+          const rawSetName = d.set?.name || rawSetId || 'Pokémon TCG';
+          const finalSetName = lang === 'en' ? rawSetName : getEnglishSetName(rawSetName || d.set?.id);
 
           return {
             id: d.id,
             tcgplayerId: tcgId,
             name: finalName,
-            setName: d.set?.name || 'Pokémon TCG',
-            set_name: d.set?.name || 'Pokémon TCG',
+            setName: finalSetName,
+            set_name: finalSetName,
             image: imageUrl,
             imageUrl: imageUrl,
             price: bestPrice ? bestPrice.toFixed(2) : null,
@@ -393,12 +396,13 @@ export async function searchTcgdexCards(
 
           const cardLang = lang === 'zh-tw' || lang === 'zh-cn' ? 'zh' : (lang as any);
           const { englishName, isTranslated } = translateAsianCardName(item.name || '');
+          const finalSetName = lang === 'en' ? 'Pokémon TCG' : getEnglishSetName(rawSetId);
 
           return {
             id: item.id,
             name: isTranslated ? englishName : item.name,
-            setName: 'Pokémon TCG',
-            set_name: 'Pokémon TCG',
+            setName: finalSetName,
+            set_name: finalSetName,
             image: imageUrl,
             imageUrl: imageUrl,
             price: null,

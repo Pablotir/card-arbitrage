@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { searchEbay } from '../utils/ebay'; 
 import { searchTcgdexCards } from '@/lib/tcgdex';
 import { CardLanguage, MultiLangPrice, SearchCardResult } from '@/lib/types';
-import { translateJapaneseCardName, findEnglishCounterpart, translateAsianCardName } from '@/lib/jpTranslations';
+import { translateJapaneseCardName, findEnglishCounterpart, translateAsianCardName, normalizeCardName } from '@/lib/jpTranslations';
 import {
   isTrueJapaneseExclusive,
   isTrueChineseExclusive,
@@ -12,6 +12,7 @@ import {
   CURATED_TRUE_EXCLUSIVES
 } from '@/lib/exclusiveRegistry';
 import { getKnownCardPrice } from '@/lib/knownPrices';
+import { getEnglishSetName } from '@/lib/setEquivalents';
 
 // In-Memory cache for JustTCG to conserve limited user API query credits
 const justTcgCache = new Map<string, { timestamp: number; data: any }>();
@@ -639,13 +640,16 @@ export async function GET(request: Request) {
       } else {
         const { englishName, isTranslated } = translateJapaneseCardName(card.name);
         const isTrueExclusive = isTrueJapaneseExclusive(card);
-        const displayName = isTrueExclusive
-          ? (isTranslated ? `${englishName} [JP Exclusive]` : `${card.name} [JP Exclusive]`)
-          : (isTranslated ? englishName : card.name);
+        const baseEnglish = isTranslated ? englishName : (translateAsianCardName(card.name).englishName || card.name);
+        const cleanName = baseEnglish.replace(/\s*\[(JA|JP) Exclusive\]/gi, '').trim();
+        const displayName = isTrueExclusive ? `${cleanName} [JP Exclusive]` : cleanName;
+        const englishSetName = getEnglishSetName(card.setName || card.set_name || card.id);
 
         const jaCardToAdd: SearchCardResult = {
           ...card,
           name: displayName,
+          setName: englishSetName,
+          set_name: englishSetName,
           game: 'pokemon-japan',
           language: 'ja',
           isExclusive: isTrueExclusive
@@ -674,11 +678,14 @@ export async function GET(request: Request) {
       } else {
         const { englishName, isTranslated } = translateAsianCardName(card.name);
         const displayName = isTranslated ? englishName : card.name;
+        const englishSetName = getEnglishSetName(card.setName || card.set_name || card.id);
         const key = `ko-${card.id}`;
         if (!combinedMap.has(key)) {
           combinedMap.set(key, {
             ...card,
             name: displayName,
+            setName: englishSetName,
+            set_name: englishSetName,
             language: 'ko',
             pricingSource: card.pricingSource || 'Asian Comps'
           });
@@ -707,12 +714,15 @@ export async function GET(request: Request) {
         const { englishName, isTranslated } = translateAsianCardName(card.name);
         const cleanBase = isTranslated ? englishName : card.name.replace(/\s*\[(ZH|CH) Exclusive\]/gi, '');
         const displayName = isZhExclusive ? `${cleanBase} [CH Exclusive]` : cleanBase;
+        const englishSetName = getEnglishSetName(card.setName || card.set_name || card.id);
 
         const key = `zh-${card.id}`;
         if (!combinedMap.has(key)) {
           combinedMap.set(key, {
             ...card,
             name: displayName,
+            setName: englishSetName,
+            set_name: englishSetName,
             isExclusive: isZhExclusive,
             language: 'zh',
             pricingSource: card.pricingSource || 'Asian Comps'
@@ -729,14 +739,17 @@ export async function GET(request: Request) {
       }
     }
 
-    // 6. Merge matching curated true exclusives
+    // 6. Merge matching curated true exclusives (with deduplication against existing cards)
+    const isExclusivesFilter = specialTypes.includes('exclusives-only') || specialTypes.includes('stamped-promos') || specialTypes.includes('burgerchu-stamped');
+    const qLower = q.trim().toLowerCase();
+    const mentionsChina = qLower.includes('chin') || qLower.includes('zh') || qLower.includes('taipei') || qLower.includes('gem') || qLower.includes('burgerchu') || qLower.includes('exclusive');
+
     for (const curated of CURATED_TRUE_EXCLUSIVES) {
-      if (curated.language === 'ja' && !wantJa) continue;
-      if (curated.language === 'zh' && !wantZh) continue;
-      if (curated.language === 'en' && !wantEn) continue;
+      if (curated.language === 'ja' && !wantJa && !isExclusivesFilter) continue;
+      if (curated.language === 'zh' && !wantZh && !isExclusivesFilter && !mentionsChina) continue;
+      if (curated.language === 'en' && !wantEn && !isExclusivesFilter) continue;
 
       if (q.trim()) {
-        const qLower = q.trim().toLowerCase();
         const matchesQuery =
           curated.name.toLowerCase().includes(qLower) ||
           (curated.setName && curated.setName.toLowerCase().includes(qLower)) ||
@@ -744,7 +757,7 @@ export async function GET(request: Request) {
         if (!matchesQuery) continue;
       }
 
-      if (category) {
+      if (category && !isExclusivesFilter && !mentionsChina) {
         const catLower = category.toLowerCase();
         if (catLower.includes('trainer') && !curated.category?.toLowerCase().includes('trainer')) {
           continue;
@@ -754,7 +767,7 @@ export async function GET(request: Request) {
         }
       }
 
-      if (trainerType) {
+      if (trainerType && !isExclusivesFilter && !mentionsChina) {
         const tLower = trainerType.toLowerCase().trim();
         if (!curated.trainerType || !curated.trainerType.toLowerCase().includes(tLower)) {
           continue;
@@ -771,8 +784,38 @@ export async function GET(request: Request) {
         if (!matchesAnySpecial) continue;
       }
 
-      const key = `${curated.language || 'en'}-${curated.id}`;
-      if (!combinedMap.has(key)) {
+      // Check if this curated card already exists in combinedMap to prevent duplicates at bottom
+      const curatedBaseName = normalizeCardName(curated.name);
+      let alreadyExists = false;
+
+      for (const [existingKey, existingCard] of combinedMap.entries()) {
+        const existingIdLower = (existingCard.id || '').toLowerCase();
+        const curatedIdLower = curated.id.toLowerCase();
+        const idMatches = existingIdLower === curatedIdLower ||
+          existingIdLower.includes(curatedIdLower) ||
+          curatedIdLower.includes(existingIdLower) ||
+          existingKey.toLowerCase().endsWith(curatedIdLower);
+
+        const nameMatches = normalizeCardName(existingCard.name) === curatedBaseName;
+
+        if (idMatches || (nameMatches && existingCard.language === curated.language)) {
+          alreadyExists = true;
+          // Ensure working image and correct price
+          if (!existingCard.image || existingCard.image.includes('cardback') || existingCard.image.includes('back.png') || existingCard.image.includes('/sm/')) {
+            existingCard.image = curated.image;
+            existingCard.imageUrl = curated.imageUrl;
+          }
+          if ((!existingCard.price || parseFloat(String(existingCard.price)) === 0) && curated.price) {
+            existingCard.price = curated.price;
+            existingCard.pricingSource = curated.pricingSource;
+          }
+          existingCard.isExclusive = true;
+          break;
+        }
+      }
+
+      if (!alreadyExists) {
+        const key = `${curated.language || 'en'}-${curated.id}`;
         combinedMap.set(key, curated);
       }
     }

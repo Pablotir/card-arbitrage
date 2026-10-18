@@ -40,7 +40,17 @@ export const KNOWN_CARD_PRICING: Record<string, KnownPriceEntry> = {
 
   // Cynthia Full Art (Ultra Prism 148/156)
   'sm5-148': { tcgplayerId: '160351', price: 95.00, source: 'TCGPlayer' },
-  'sm5-119': { tcgplayerId: '160322', price: 1.50, source: 'TCGPlayer' }
+  'sm5-119': { tcgplayerId: '160322', price: 1.50, source: 'TCGPlayer' },
+  // Japanese Cynthia SR (Tag All Stars / GX Ultra Shiny / Ultra Prism)
+  'sm8b-153': { tcgplayerId: '198083', price: 155.00, source: 'Cardmarket / Mercari' },
+  'sm5m-070': { tcgplayerId: '160351', price: 180.00, source: 'Cardmarket / Mercari' },
+
+  // Hilda (Special Illustration Rare - White Flare / Japanese sv10W-171)
+  'sv-hilda-sar': { tcgplayerId: '596101', price: 54.75, source: 'TCGPlayer' },
+  // Hilda (Ultra Rare / Full Art - White Flare / Japanese sv10W-164)
+  'sv-hilda-fa': { tcgplayerId: '596100', price: 9.43, source: 'TCGPlayer' },
+  // Hilda (Uncommon - White Flare)
+  'sv-hilda-unc': { tcgplayerId: '596099', price: 1.85, source: 'TCGPlayer' }
 };
 
 export function getKnownCardPrice(
@@ -83,12 +93,24 @@ export function getKnownCardPrice(
       return KNOWN_CARD_PRICING['sm9-174'];
     }
     if (lower.includes('cynthia')) {
+      if (cardId?.toLowerCase().includes('sm8b') || lower.includes('tag all stars') || sLower.includes('tag all stars')) {
+        return KNOWN_CARD_PRICING['sm8b-153'];
+      }
       if (lower.includes('hidden fates') || sLower.includes('hidden fates') || sLower.includes('shiny vault') || cardId?.toLowerCase().includes('sv82') || lower.includes('sv82')) {
         return KNOWN_CARD_PRICING['sma-SV82'];
       }
       if (isUltra || lower.includes('148') || sLower.includes('ultra prism')) {
         return KNOWN_CARD_PRICING['sm5-148'];
       }
+    }
+    if (lower.includes('hilda') || lower.includes('トウコ')) {
+      if (rLower.includes('special') || rLower.includes('sar') || lower.includes('171')) {
+        return KNOWN_CARD_PRICING['sv-hilda-sar'];
+      }
+      if (isUltra || rLower.includes('ultra') || lower.includes('164')) {
+        return KNOWN_CARD_PRICING['sv-hilda-fa'];
+      }
+      return KNOWN_CARD_PRICING['sv-hilda-unc'];
     }
     if (lower.includes('guzma') && (lower.includes('hidden fates') || sLower.includes('hidden fates') || cardId?.toLowerCase().includes('sv84'))) {
       return KNOWN_CARD_PRICING['sma-SV84'];

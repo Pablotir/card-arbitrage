@@ -1,5 +1,6 @@
 import { SearchCardResult } from './types';
 import { isTrueJapaneseExclusive, isTrueChineseExclusive } from './exclusiveRegistry';
+import { areSetsEquivalent, getEnglishSetName } from './setEquivalents';
 
 // Comprehensive dictionary mapping Japanese card & trainer names to their official English releases
 export const JP_TRAINER_NAME_MAP: Record<string, string> = {
@@ -420,8 +421,9 @@ export function translateJapaneseCardName(rawJpName: string): { englishName: str
 }
 
 /**
- * Checks whether a Japanese card already has an English counterpart in the English card results list.
- * Uses smart normalized matching and rarity-tier alignment so Super Rare maps to Ultra Rare / Full Art.
+ * Checks whether a Japanese or Asian card already has an English counterpart in the English card results list.
+ * Uses set equivalents (e.g. Night Wanderer -> Shrouded Fable, Cyber Judge -> Temporal Forces, Supercharged Breaker -> Surging Sparks)
+ * and character name normalization so Japanese cards merge seamlessly and never create duplicate cards.
  */
 export function findEnglishCounterpart(
   card: SearchCardResult,
@@ -448,18 +450,37 @@ export function findEnglishCounterpart(
 
   if (matches.length === 0) return null;
 
-  // STRICT TIER ALIGNMENT:
-  // High-rarity Japanese cards (SR, SAR, Ultra Rare) ONLY match English high-rarity cards.
-  // Low-rarity Japanese cards (Uncommon, Common) ONLY match English low-rarity cards.
-  // Low-rarity bulk ($0.03) must NEVER match a Special Illustration Rare or Ultra Rare!
+  // 1. SET EQUIVALENT MATCHING:
+  // Check if any matching English card belongs to the equivalent English set
+  const setMatches = matches.filter((enCard) =>
+    areSetsEquivalent(card.setName || card.id, enCard.setName || enCard.id)
+  );
+
+  if (setMatches.length > 0) {
+    if (cardIsHigh) {
+      const highInSet = setMatches.filter((en) => isHighRarityCard(en.rarity, en.name));
+      if (highInSet.length > 0) return highInSet[0];
+    }
+    // If only 1 card exists in that equivalent set, it's the exact counterpart
+    return setMatches[0];
+  }
+
+  // 2. TIER-ALIGNED FALLBACK:
+  // High-rarity Japanese cards (SR, SAR, Ultra Rare) match English high-rarity cards.
   const highTierMatches = matches.filter((en) => isHighRarityCard(en.rarity, en.name));
   const lowTierMatches = matches.filter((en) => !isHighRarityCard(en.rarity, en.name));
 
   if (cardIsHigh) {
     if (highTierMatches.length > 0) return highTierMatches[0];
+    // If English only has 1 card for this character and Japanese card is not bulk ($0.03)
+    const cardPrice = parseFloat(String(card.price || '0'));
+    if (matches.length === 1 && cardPrice > 1.50) return matches[0];
     return null;
   } else {
     if (lowTierMatches.length > 0) return lowTierMatches[0];
+    // Don't merge cheap bulk ($0.03) into expensive Ultra Rare/SIR cards
+    const cardPrice = parseFloat(String(card.price || '0'));
+    if (matches.length === 1 && cardPrice > 5.00) return matches[0];
     return null;
   }
 }

@@ -900,7 +900,7 @@ export default function Home() {
       />
 
       {/* MAIN CONTAINER */}
-      <main className="max-w-7xl mx-auto p-4 sm:p-6 flex-1 w-full space-y-6">
+      <main className="max-w-[1920px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 space-y-6">
         {serverError && (
           <div className="flex items-center justify-between gap-3 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 rounded-2xl px-5 py-3 text-xs font-semibold">
             <span>⚠️ {serverError}</span>

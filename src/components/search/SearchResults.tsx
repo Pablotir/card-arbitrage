@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { SearchCardResult, CardLanguage } from '@/lib/types';
 import { Target, CheckCircle2, Sparkles, Bookmark, Check, SlidersHorizontal, RotateCcw, ChevronDown, ChevronUp, LayoutGrid, Maximize2, Minimize2, Trash2 } from 'lucide-react';
 import { formatCurrency } from '@/utils/format';
 import { SafeImage } from '../ui/SafeImage';
+import { getCardEra } from '@/lib/exclusiveRegistry';
 
 interface SearchResultsProps {
   results: SearchCardResult[];
@@ -28,6 +29,94 @@ const LANG_FLAGS: Record<CardLanguage, string> = {
   onepiece: '🏴‍☠️ OP'
 };
 
+interface EraSectionDef {
+  id: string;
+  title: string;
+  badge: string;
+  icon: string;
+  colorClass: string;
+}
+
+const ERA_SECTIONS: EraSectionDef[] = [
+  {
+    id: 'me',
+    title: 'Mega Evolution & Pocket',
+    badge: 'ME',
+    icon: '⚡',
+    colorClass: 'from-amber-500/10 via-orange-500/15 to-red-500/10 border-orange-300 dark:border-orange-800 text-orange-900 dark:text-orange-200'
+  },
+  {
+    id: 'sv',
+    title: 'Scarlet & Violet',
+    badge: 'SV',
+    icon: '🌟',
+    colorClass: 'from-violet-500/10 via-purple-500/15 to-indigo-500/10 border-purple-300 dark:border-purple-800 text-purple-900 dark:text-purple-200'
+  },
+  {
+    id: 'swsh',
+    title: 'Sword & Shield',
+    badge: 'SWSH',
+    icon: '⚔️',
+    colorClass: 'from-blue-500/10 via-cyan-500/15 to-sky-500/10 border-blue-300 dark:border-blue-800 text-blue-900 dark:text-blue-200'
+  },
+  {
+    id: 'sm',
+    title: 'Sun & Moon',
+    badge: 'SM',
+    icon: '☀️',
+    colorClass: 'from-amber-500/10 via-yellow-500/15 to-orange-500/10 border-yellow-300 dark:border-yellow-800 text-amber-900 dark:text-amber-200'
+  },
+  {
+    id: 'xy',
+    title: 'XY Series',
+    badge: 'XY',
+    icon: '💎',
+    colorClass: 'from-sky-500/10 via-blue-500/15 to-indigo-500/10 border-sky-300 dark:border-sky-800 text-sky-900 dark:text-sky-200'
+  },
+  {
+    id: 'bw',
+    title: 'Black & White',
+    badge: 'BW',
+    icon: '⚫',
+    colorClass: 'from-gray-500/10 via-slate-500/15 to-zinc-500/10 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-200'
+  },
+  {
+    id: 'hgss',
+    title: 'HeartGold & SoulSilver',
+    badge: 'HGSS',
+    icon: '🏆',
+    colorClass: 'from-yellow-500/10 via-amber-500/15 to-gold-500/10 border-yellow-300 dark:border-yellow-800 text-yellow-900 dark:text-yellow-200'
+  },
+  {
+    id: 'dp',
+    title: 'Diamond & Pearl / Platinum',
+    badge: 'DP',
+    icon: '✨',
+    colorClass: 'from-teal-500/10 via-emerald-500/15 to-cyan-500/10 border-teal-300 dark:border-teal-800 text-teal-900 dark:text-teal-200'
+  },
+  {
+    id: 'ex',
+    title: 'EX Series (Ruby & Sapphire)',
+    badge: 'EX',
+    icon: '⭐',
+    colorClass: 'from-rose-500/10 via-red-500/15 to-pink-500/10 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200'
+  },
+  {
+    id: 'classic',
+    title: 'Vintage & Classic (WotC / e-Card / Neo / Base)',
+    badge: 'Classic',
+    icon: '📜',
+    colorClass: 'from-stone-500/10 via-amber-500/15 to-yellow-500/10 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200'
+  },
+  {
+    id: 'other',
+    title: 'Special Promos & Collaborations',
+    badge: 'Special',
+    icon: '🎁',
+    colorClass: 'from-purple-500/10 via-fuchsia-500/15 to-pink-500/10 border-purple-300 dark:border-purple-800 text-purple-900 dark:text-purple-200'
+  }
+];
+
 export function SearchResults({
   results,
   onAddToList,
@@ -46,8 +135,8 @@ export function SearchResults({
   // Set of card IDs that were explicitly selected (either by manual chip click or price slider)
   const [explicitlySelectedIds, setExplicitlySelectedIds] = useState<Set<string>>(new Set());
 
-  // Dynamic Grid & Sizing Controls
-  const [gridCols, setGridCols] = useState<'auto' | '3' | '4' | '5' | '6'>('auto');
+  // Interactive Visual Card Sizing Slider (min-width in px: 210px to 420px, default 290px)
+  const [cardMinSize, setCardMinSize] = useState<number>(290);
   const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable');
 
   // Smart Price Tier Slider State
@@ -227,6 +316,32 @@ export function SearchResults({
     return enPrice >= priceThreshold;
   }).length;
 
+  // Group cards by Pokémon era in chronological order with centered headers
+  const groupedByEra = useMemo(() => {
+    const map: Record<string, SearchCardResult[]> = {};
+    for (const era of ERA_SECTIONS) {
+      map[era.id] = [];
+    }
+
+    for (const card of results) {
+      let eraId = getCardEra(card.id, card.setName || card.set_name);
+      if (['ecard', 'neo', 'vintage'].includes(eraId)) {
+        eraId = 'classic';
+      }
+      if (!map[eraId]) {
+        map[eraId] = [];
+      }
+      map[eraId].push(card);
+    }
+
+    return ERA_SECTIONS
+      .filter((sec) => map[sec.id] && map[sec.id].length > 0)
+      .map((sec) => ({
+        ...sec,
+        cards: map[sec.id]
+      }));
+  }, [results]);
+
   return (
     <div className="space-y-4">
       {/* 1. Search Results Header & Quick Actions */}
@@ -296,27 +411,29 @@ export function SearchResults({
       </div>
 
       {/* View & Layout Controls Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 bg-gray-50/80 dark:bg-gray-800/60 rounded-2xl border border-gray-100 dark:border-gray-700/60 text-xs">
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-1.5">
-            <LayoutGrid className="w-3.5 h-3.5 text-gray-400" />
-            <span className="font-bold text-gray-600 dark:text-gray-400">Columns:</span>
-            <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-0.5">
-              {(['auto', '3', '4', '5', '6'] as const).map((col) => (
-                <button
-                  key={col}
-                  type="button"
-                  onClick={() => setGridCols(col)}
-                  className={`px-2 py-0.5 rounded-md font-bold text-[11px] transition cursor-pointer ${
-                    gridCols === col
-                      ? 'bg-blue-600 text-white shadow-2xs'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                  }`}
-                >
-                  {col === 'auto' ? 'Auto-Fit' : col}
-                </button>
-              ))}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-gray-50/90 dark:bg-gray-800/70 rounded-2xl border border-gray-100 dark:border-gray-700/60 text-xs shadow-2xs">
+        <div className="flex items-center gap-6 flex-wrap">
+          {/* Interactive Card Visual Size Slider */}
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-1.5 font-bold text-gray-700 dark:text-gray-300">
+              <Maximize2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span>Card Visual Size:</span>
             </div>
+            <span className="text-[11px] text-gray-400 font-medium">Compact</span>
+            <input
+              type="range"
+              min="210"
+              max="420"
+              step="10"
+              value={cardMinSize}
+              onChange={(e) => setCardMinSize(parseInt(e.target.value, 10))}
+              className="w-28 sm:w-40 h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+              title={`Card min-width: ${cardMinSize}px`}
+            />
+            <span className="text-[11px] text-gray-400 font-medium">Large</span>
+            <span className="text-[11px] font-mono font-extrabold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800/60">
+              {cardMinSize}px
+            </span>
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -478,248 +595,260 @@ export function SearchResults({
         </div>
       )}
 
-      {/* 3. Cards Grid */}
-      {(() => {
-        const gridClass =
-          gridCols === '3'
-            ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
-            : gridCols === '4'
-            ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
-            : gridCols === '5'
-            ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
-            : gridCols === '6'
-            ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
-            : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6';
+      {/* 3. Cards Organized by Era with Centered Headers */}
+      <div className="space-y-10">
+        {groupedByEra.map((sec) => (
+          <div key={sec.id} className="space-y-4">
+            {/* Centered Era Header with Badges and Divider */}
+            <div className="flex items-center justify-center my-6">
+              <div className="flex-1 border-t border-gray-200 dark:border-gray-800" />
+              <div className={`mx-4 px-5 py-2 rounded-2xl bg-linear-to-r ${sec.colorClass} border font-black text-sm tracking-wide shadow-xs flex items-center gap-2.5`}>
+                <span className="text-base">{sec.icon}</span>
+                <span className="text-[11px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-md bg-white/80 dark:bg-gray-900/80 shadow-2xs">
+                  {sec.badge}
+                </span>
+                <span className="font-extrabold">{sec.title}</span>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-white/60 dark:bg-gray-900/60 opacity-80">
+                  {sec.cards.length} {sec.cards.length === 1 ? 'card' : 'cards'}
+                </span>
+              </div>
+              <div className="flex-1 border-t border-gray-200 dark:border-gray-800" />
+            </div>
 
-        return (
-          <div className={`grid ${gridClass} ${density === 'compact' ? 'gap-2.5' : 'gap-4'}`}>
-            {results.map((card, idx) => {
-              const img = getCardImg(card);
-              const fallbackImg = getFallbackImg(card);
-              const setName = card.setName || card.set_name || 'Expansion';
-              const owned = isOwned ? isOwned(card) : false;
-              const inWishlist = isTracked ? isTracked(card) : false;
+            {/* Dynamic Grid using Card Visual Size Slider */}
+            <div
+              className={`grid ${density === 'compact' ? 'gap-2.5' : 'gap-3.5'}`}
+              style={{
+                gridTemplateColumns: `repeat(auto-fill, minmax(${cardMinSize}px, 1fr))`
+              }}
+            >
+              {sec.cards.map((card, idx) => {
+                const img = getCardImg(card);
+                const fallbackImg = getFallbackImg(card);
+                const setName = card.setName || card.set_name || 'Expansion';
+                const owned = isOwned ? isOwned(card) : false;
+                const inWishlist = isTracked ? isTracked(card) : false;
 
-              const hasLanguages = card.languages && Object.keys(card.languages).length > 1;
-              const hasSavings = Boolean(card.savingsVsEnglish && card.savingsVsEnglish > 0);
-              const cardLang = card.language || 'en';
+                const hasLanguages = card.languages && Object.keys(card.languages).length > 1;
+                const hasSavings = Boolean(card.savingsVsEnglish && card.savingsVsEnglish > 0);
+                const cardLang = card.language || 'en';
 
-              const chosenLang = getChosenLangForCard(card);
-              const chosenPrice = getChosenPriceForCard(card, chosenLang);
-              const isExplicitlyChosen = explicitlySelectedIds.has(card.id);
-              const chosenLangDisplay = chosenLang === 'zh' ? 'CH' : chosenLang.toUpperCase();
+                const chosenLang = getChosenLangForCard(card);
+                const chosenPrice = getChosenPriceForCard(card, chosenLang);
+                const isExplicitlyChosen = explicitlySelectedIds.has(card.id);
+                const chosenLangDisplay = chosenLang === 'zh' ? 'CH' : chosenLang.toUpperCase();
 
-              return (
-                <div
-                  key={card.id || idx}
-                  className={`group bg-white dark:bg-gray-800/90 rounded-2xl border transition flex flex-col justify-between ${
-                    density === 'compact' ? 'p-2.5' : 'p-4'
-                  } ${
-                    isExplicitlyChosen
-                      ? 'border-indigo-400 dark:border-indigo-600 ring-2 ring-indigo-500/30 shadow-md shadow-indigo-500/10'
-                      : owned
-                      ? 'border-emerald-200 dark:border-emerald-800/60'
-                      : 'border-gray-100 dark:border-gray-700/80 hover:border-gray-200 dark:hover:border-gray-600 hover:shadow-md'
-                  }`}
-                >
-                  <div>
-                    <div className={`flex ${density === 'compact' ? 'gap-2' : 'gap-3'}`}>
-                      <div className={`${density === 'compact' ? 'w-14 h-20' : 'w-20 h-28'} flex-shrink-0 bg-gray-50 dark:bg-gray-900 rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800 flex items-center justify-center p-1 relative`}>
-                        <SafeImage
-                          src={img}
-                          fallbackSrc={fallbackImg}
-                          alt={card.name}
-                          fallbackText={card.name}
-                          className="w-full h-full object-contain transition-transform group-hover:scale-105 duration-200"
-                        />
+                return (
+                  <div
+                    key={card.id || idx}
+                    className={`group bg-white dark:bg-gray-800/90 rounded-2xl border transition flex flex-col justify-between overflow-hidden ${
+                      density === 'compact' ? 'p-2.5' : 'p-3.5'
+                    } ${
+                      isExplicitlyChosen
+                        ? 'border-indigo-400 dark:border-indigo-600 ring-2 ring-indigo-500/30 shadow-md shadow-indigo-500/10'
+                        : owned
+                        ? 'border-emerald-200 dark:border-emerald-800/60'
+                        : 'border-gray-100 dark:border-gray-700/80 hover:border-gray-200 dark:hover:border-gray-600 hover:shadow-md'
+                    }`}
+                  >
+                    <div>
+                      <div className={`flex ${density === 'compact' ? 'gap-2' : 'gap-2.5'} min-w-0`}>
+                        <div className={`${density === 'compact' ? 'w-16 h-22' : 'w-20 h-28'} shrink-0 bg-gray-50 dark:bg-gray-900 rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800 flex items-center justify-center p-1 relative`}>
+                          <SafeImage
+                            src={img}
+                            fallbackSrc={fallbackImg}
+                            alt={card.name}
+                            fallbackText={card.name}
+                            className="w-full h-full object-contain transition-transform group-hover:scale-105 duration-200"
+                          />
+                        </div>
+
+                        <div className="flex-1 min-w-0 flex flex-col justify-start">
+                          <div className="flex items-center gap-1 flex-wrap max-w-full">
+                            {owned && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/80 flex items-center gap-0.5 shrink-0">
+                                ✓ Owned
+                              </span>
+                            )}
+                            {card.isExclusive ? (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800/80 truncate">
+                                {LANG_FLAGS[cardLang] || cardLang.toUpperCase()} Exclusive
+                              </span>
+                            ) : cardLang !== 'en' ? (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 truncate">
+                                {LANG_FLAGS[cardLang] || cardLang.toUpperCase()}
+                              </span>
+                            ) : null}
+
+                            {isExplicitlyChosen && (
+                              <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950/90 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700 shrink-0">
+                                🎯 {chosenLangDisplay} Chosen
+                              </span>
+                            )}
+                          </div>
+
+                          <h4 className="font-bold text-gray-900 dark:text-gray-100 text-sm leading-tight truncate mt-1 block" title={card.name}>
+                            {card.name}
+                          </h4>
+
+                          <span className="text-xs text-blue-600 dark:text-blue-400 font-medium truncate mt-0.5 block" title={setName}>
+                            {setName}
+                          </span>
+
+                          {card.rarity && card.rarity.toLowerCase() !== 'none' && (
+                            <span className="inline-block mt-1 text-[10px] font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-200 dark:border-purple-800/60 max-w-full truncate" title={card.rarity}>
+                              {card.rarity}
+                            </span>
+                          )}
+
+                          <div className="mt-auto pt-1 flex items-baseline gap-1.5 flex-wrap">
+                            <span className="text-[11px] text-gray-400 shrink-0">
+                              {cardLang === 'ja' ? 'JP Mkt:' : cardLang === 'zh' ? 'CH Mkt:' : cardLang === 'ko' ? 'KO Mkt:' : 'EN Mkt:'}
+                            </span>
+                            <span className="text-sm font-extrabold text-gray-900 dark:text-gray-100 truncate">
+                              {card.price ? formatCurrency(card.price) : 'N/A'}
+                            </span>
+                            {card.pricingSource && (
+                              <span className={`text-[9px] font-semibold px-1 rounded truncate ${
+                                card.pricingSource === 'TCGPlayer'
+                                  ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/60'
+                                  : 'bg-gray-100 dark:bg-gray-800 text-gray-500'
+                              }`}>
+                                {card.pricingSource}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
 
-                  <div className="flex-1 flex flex-col justify-start min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {owned && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/80 flex items-center gap-0.5">
-                          ✓ Owned
-                        </span>
-                      )}
-                      {card.isExclusive ? (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800/80">
-                          {LANG_FLAGS[cardLang] || cardLang.toUpperCase()} Exclusive
-                        </span>
-                      ) : cardLang !== 'en' ? (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                          {LANG_FLAGS[cardLang] || cardLang.toUpperCase()}
-                        </span>
-                      ) : null}
+                      {/* Multi-Language Price Comparison Matrix with Interactive Chips */}
+                      {hasLanguages && (
+                        <div className="mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-700/60 space-y-1">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="font-bold text-gray-500 dark:text-gray-400">Pick Language:</span>
+                            {hasSavings && (
+                              <span className="font-black text-emerald-600 dark:text-emerald-400 text-[10px] bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-200 dark:border-emerald-800/50 truncate">
+                                Save {card.savingsVsEnglish}% on {card.cheapestLanguage === 'zh' ? 'CH' : (card.cheapestLanguage || 'alt').toUpperCase()}
+                              </span>
+                            )}
+                          </div>
 
-                      {/* Explicit Selection Indicator Pill */}
-                      {isExplicitlyChosen && (
-                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950/90 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700">
-                          🎯 {chosenLangDisplay} Chosen
-                        </span>
+                          <div className="grid grid-cols-2 gap-1 text-[11px]">
+                            {Object.entries(card.languages!).map(([langKey, langInfo]) => {
+                              const isTileSelected = chosenLang === langKey;
+                              const isTileExplicit = isExplicitlyChosen && isTileSelected;
+                              const isCheapest = langInfo.isCheapest;
+
+                              return (
+                                <button
+                                  key={langKey}
+                                  type="button"
+                                  onClick={() => handleSelectCardLang(card.id, langKey as CardLanguage)}
+                                  className={`px-1.5 py-1 rounded-lg border flex items-center justify-between text-[10px] transition-all cursor-pointer min-w-0 ${
+                                    isTileExplicit
+                                      ? 'bg-linear-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 border-indigo-500 dark:border-indigo-400 text-indigo-900 dark:text-indigo-200 ring-2 ring-indigo-500/90 shadow-md shadow-indigo-500/30 scale-[1.02] font-black'
+                                      : isTileSelected
+                                      ? 'bg-emerald-50 dark:bg-emerald-950/70 border-emerald-400 dark:border-emerald-600 text-emerald-900 dark:text-emerald-200 ring-1 ring-emerald-400 shadow-2xs font-bold'
+                                      : 'bg-gray-50 dark:bg-gray-900/60 border-gray-100 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800/80'
+                                  }`}
+                                  title={`Click to select ${LANG_FLAGS[langKey as CardLanguage] || langKey.toUpperCase()} for Quick Add`}
+                                >
+                                  <span className="flex items-center gap-0.5 min-w-0 truncate">
+                                    <span className="truncate">{LANG_FLAGS[langKey as CardLanguage] || langKey.toUpperCase()}</span>
+                                    {isTileExplicit && (
+                                      <span className="text-[8px] bg-indigo-600 text-white font-black px-0.5 rounded-xs">
+                                        ✓
+                                      </span>
+                                    )}
+                                    {!isTileExplicit && isCheapest && (
+                                      <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold">★</span>
+                                    )}
+                                  </span>
+                                  <span className="font-semibold shrink-0 ml-1">{formatCurrency(langInfo.price)}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
                       )}
                     </div>
 
-                    <h4 className="font-bold text-gray-900 dark:text-gray-100 text-sm leading-tight truncate mt-0.5" title={card.name}>
-                      {card.name}
-                    </h4>
-
-                    <span className="text-xs text-blue-600 dark:text-blue-400 font-medium truncate mt-0.5" title={setName}>
-                      {setName}
-                    </span>
-
-                    {card.rarity && card.rarity.toLowerCase() !== 'none' && (
-                      <span className="inline-block mt-1 text-[10px] font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-200 dark:border-purple-800/60 w-fit truncate">
-                        {card.rarity}
-                      </span>
-                    )}
-
-                    <div className="mt-auto pt-1.5 flex items-baseline gap-1.5 flex-wrap">
-                      <span className="text-[11px] text-gray-400">
-                        {cardLang === 'ja' ? 'JP Mkt:' : cardLang === 'zh' ? 'CH Mkt:' : cardLang === 'ko' ? 'KO Mkt:' : 'EN Mkt:'}
-                      </span>
-                      <span className="text-sm font-extrabold text-gray-900 dark:text-gray-100">
-                        {card.price ? formatCurrency(card.price) : 'N/A'}
-                      </span>
-                      {card.pricingSource && (
-                        <span className={`text-[9px] font-semibold px-1 rounded ${
-                          card.pricingSource === 'TCGPlayer'
-                            ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/60'
-                            : 'bg-gray-100 dark:bg-gray-800 text-gray-500'
-                        }`}>
-                          {card.pricingSource}
+                    {/* Action Buttons */}
+                    <div className="pt-2.5 border-t border-gray-100 dark:border-gray-700/60 mt-2 space-y-1.5">
+                      {/* 1. Chosen / Lowest-Cost Version Wishlist Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (onAddOptimizedToList) {
+                            onAddOptimizedToList(card, chosenLang);
+                          }
+                        }}
+                        className={`w-full flex items-center justify-center gap-1.5 text-xs font-bold py-1.5 px-2 rounded-xl transition cursor-pointer truncate ${
+                          isExplicitlyChosen
+                            ? 'bg-linear-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-700 hover:to-purple-700 text-white ring-2 ring-indigo-400/50 shadow-md shadow-indigo-500/30'
+                            : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs'
+                        }`}
+                        title={`Add ${chosenLangDisplay} version to Wishlist at ${formatCurrency(chosenPrice)}`}
+                      >
+                        <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">
+                          {isExplicitlyChosen ? 'Wishlist Chosen' : 'Wishlist Cheapest'} ({chosenLangDisplay}: {formatCurrency(chosenPrice)})
                         </span>
-                      )}
+                      </button>
+
+                      {/* 2. Action Buttons: I Own This, Wishlist & Snipe */}
+                      <div className="grid grid-cols-3 gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onOpenOwnModal) {
+                              onOpenOwnModal(card);
+                            } else if (onToggleOwned) {
+                              onToggleOwned(card);
+                            }
+                          }}
+                          className={`flex items-center justify-center gap-1 py-1.5 px-1 rounded-xl text-xs font-bold transition border cursor-pointer min-w-0 ${
+                            owned
+                              ? 'bg-emerald-600 text-white border-emerald-700 shadow-2xs hover:bg-emerald-700'
+                              : 'bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60'
+                          }`}
+                          title={owned ? 'Card is in your collection - click to edit details' : 'Mark as owned (set price, language, condition)'}
+                        >
+                          {owned ? <Check className="w-3 h-3 shrink-0" /> : <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />}
+                          <span className="truncate">{owned ? 'Owned' : 'I Own'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => onAddToList(card)}
+                          disabled={inWishlist}
+                          className={`flex items-center justify-center gap-1 ${
+                            inWishlist
+                              ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed border border-transparent'
+                              : 'bg-gray-900 dark:bg-gray-700 hover:bg-gray-800 dark:hover:bg-gray-600 text-white shadow-2xs cursor-pointer'
+                          } text-xs font-semibold py-1.5 px-1 rounded-xl transition min-w-0`}
+                        >
+                          {inWishlist ? <Check className="w-3 h-3 shrink-0" /> : <Bookmark className="w-3 h-3 shrink-0" />}
+                          <span className="truncate">{inWishlist ? 'Wishlisted' : 'Wishlist'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => onOpenSniper(card)}
+                          className="flex items-center justify-center gap-1 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 text-xs font-bold py-1.5 px-1 rounded-xl transition cursor-pointer min-w-0"
+                        >
+                          <Target className="w-3 h-3 text-purple-600 dark:text-purple-400 shrink-0" />
+                          <span className="truncate">Snipe</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-
-                {/* Multi-Language Price Comparison Matrix with Interactive Chips */}
-                {hasLanguages && (
-                  <div className="mt-3 pt-2.5 border-t border-gray-100 dark:border-gray-700/60 space-y-1.5">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="font-bold text-gray-500 dark:text-gray-400">Pick Language:</span>
-                      {hasSavings && (
-                        <span className="font-black text-emerald-600 dark:text-emerald-400 text-[10px] bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-200 dark:border-emerald-800/50">
-                          Save {card.savingsVsEnglish}% on {card.cheapestLanguage === 'zh' ? 'CH' : (card.cheapestLanguage || 'alt').toUpperCase()}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-                      {Object.entries(card.languages!).map(([langKey, langInfo]) => {
-                        const isTileSelected = chosenLang === langKey;
-                        const isTileExplicit = isExplicitlyChosen && isTileSelected;
-                        const isCheapest = langInfo.isCheapest;
-
-                        return (
-                          <button
-                            key={langKey}
-                            type="button"
-                            onClick={() => handleSelectCardLang(card.id, langKey as CardLanguage)}
-                            className={`px-2 py-1.5 rounded-xl border flex items-center justify-between text-[11px] transition-all cursor-pointer ${
-                              isTileExplicit
-                                ? 'bg-linear-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 border-indigo-500 dark:border-indigo-400 text-indigo-900 dark:text-indigo-200 ring-2 ring-indigo-500/90 shadow-md shadow-indigo-500/30 scale-[1.03] font-black'
-                                : isTileSelected
-                                ? 'bg-emerald-50 dark:bg-emerald-950/70 border-emerald-400 dark:border-emerald-600 text-emerald-900 dark:text-emerald-200 ring-1 ring-emerald-400 shadow-2xs font-bold'
-                                : 'bg-gray-50 dark:bg-gray-900/60 border-gray-100 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800/80'
-                            }`}
-                            title={`Click to select ${LANG_FLAGS[langKey as CardLanguage] || langKey.toUpperCase()} for Quick Add`}
-                          >
-                            <span className="flex items-center gap-1 min-w-0">
-                              <span className="truncate">{LANG_FLAGS[langKey as CardLanguage] || langKey.toUpperCase()}</span>
-                              {isTileExplicit && (
-                                <span className="text-[9px] bg-indigo-600 text-white font-black px-1 rounded-sm uppercase tracking-tighter">
-                                  ✓
-                                </span>
-                              )}
-                              {!isTileExplicit && isCheapest && (
-                                <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold">★</span>
-                              )}
-                            </span>
-                            <span className="font-semibold">{formatCurrency(langInfo.price)}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Action Buttons */}
-              <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60 mt-2 space-y-1.5">
-                {/* 1. Chosen / Lowest-Cost Version Wishlist Button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (onAddOptimizedToList) {
-                      onAddOptimizedToList(card, chosenLang);
-                    }
-                  }}
-                  className={`w-full flex items-center justify-center gap-1.5 text-xs font-bold py-2 px-2.5 rounded-xl transition cursor-pointer ${
-                    isExplicitlyChosen
-                      ? 'bg-linear-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-700 hover:to-purple-700 text-white ring-2 ring-indigo-400/50 shadow-md shadow-indigo-500/30'
-                      : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs'
-                  }`}
-                  title={`Add ${chosenLangDisplay} version to Wishlist at ${formatCurrency(chosenPrice)}`}
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>
-                    {isExplicitlyChosen ? 'Wishlist Chosen' : 'Wishlist Cheapest'} ({chosenLangDisplay}: {formatCurrency(chosenPrice)})
-                  </span>
-                </button>
-
-                {/* 2. Action Buttons: I Own This, Wishlist & Snipe */}
-                <div className="grid grid-cols-3 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (onOpenOwnModal) {
-                        onOpenOwnModal(card);
-                      } else if (onToggleOwned) {
-                        onToggleOwned(card);
-                      }
-                    }}
-                    className={`flex items-center justify-center gap-1 py-2 px-1.5 rounded-xl text-xs font-bold transition border cursor-pointer ${
-                      owned
-                        ? 'bg-emerald-600 text-white border-emerald-700 shadow-2xs hover:bg-emerald-700'
-                        : 'bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60'
-                    }`}
-                    title={owned ? 'Card is in your collection - click to edit details' : 'Mark as owned (set price, language, condition)'}
-                  >
-                    {owned ? <Check className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />}
-                    <span className="truncate">{owned ? 'Owned' : 'I Own'}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => onAddToList(card)}
-                    disabled={inWishlist}
-                    className={`flex items-center justify-center gap-1 ${
-                      inWishlist
-                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed border border-transparent'
-                        : 'bg-gray-900 dark:bg-gray-700 hover:bg-gray-800 dark:hover:bg-gray-600 text-white shadow-2xs cursor-pointer'
-                    } text-xs font-semibold py-2 px-1.5 rounded-xl transition`}
-                  >
-                    {inWishlist ? <Check className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />}
-                    <span className="truncate">{inWishlist ? 'Wishlisted' : 'Wishlist'}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => onOpenSniper(card)}
-                    className="flex items-center justify-center gap-1 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 text-xs font-bold py-2 px-1.5 rounded-xl transition cursor-pointer"
-                  >
-                    <Target className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                    <span className="truncate">Snipe</span>
-                  </button>
-                </div>
-              </div>
+                );
+              })}
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
-    );
-  })()}
 </div>
   );
 }
