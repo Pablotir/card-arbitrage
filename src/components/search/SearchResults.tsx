@@ -11,6 +11,7 @@ interface SearchResultsProps {
   onAddOptimizedToList?: (card: SearchCardResult) => void;
   onAddAllOptimized?: (cards: SearchCardResult[]) => void;
   onOpenSniper: (card: SearchCardResult) => void;
+  onToggleOwned?: (card: SearchCardResult) => void;
   isOwned?: (card: SearchCardResult) => boolean;
   isTracked?: (card: SearchCardResult) => boolean;
 }
@@ -29,6 +30,7 @@ export function SearchResults({
   onAddOptimizedToList,
   onAddAllOptimized,
   onOpenSniper,
+  onToggleOwned,
   isOwned,
   isTracked
 }: SearchResultsProps) {
@@ -135,6 +137,11 @@ export function SearchResults({
 
                   <div className="flex-1 flex flex-col justify-start min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
+                      {owned && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/80 flex items-center gap-0.5">
+                          ✓ Owned
+                        </span>
+                      )}
                       {card.isExclusive ? (
                         <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800/80">
                           {LANG_FLAGS[cardLang] || cardLang.toUpperCase()} Exclusive
@@ -232,40 +239,45 @@ export function SearchResults({
                   </button>
                 )}
 
-                {/* 2. Standard Wishlist & Snipe Buttons */}
-                <div className="grid grid-cols-2 gap-2">
+                {/* 2. Action Buttons: I Own This, Wishlist & Snipe */}
+                <div className="grid grid-cols-3 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => onToggleOwned && onToggleOwned(card)}
+                    className={`flex items-center justify-center gap-1 py-2 px-1.5 rounded-xl text-xs font-bold transition border cursor-pointer ${
+                      owned
+                        ? 'bg-emerald-600 text-white border-emerald-700 shadow-2xs hover:bg-emerald-700'
+                        : 'bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60'
+                    }`}
+                    title={owned ? 'Card is in your collection - click to remove' : 'Mark as owned (adds directly to collection)'}
+                  >
+                    {owned ? <Check className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />}
+                    <span className="truncate">{owned ? 'Owned' : 'I Own'}</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => onAddToList(card)}
                     disabled={inWishlist}
-                    className={`flex items-center justify-center gap-1.5 ${
+                    className={`flex items-center justify-center gap-1 ${
                       inWishlist
-                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed'
-                        : 'bg-gray-900 dark:bg-gray-700 hover:bg-gray-800 dark:hover:bg-gray-600 text-white shadow-2xs'
-                    } text-xs font-semibold py-2 px-3 rounded-xl transition`}
+                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed border border-transparent'
+                        : 'bg-gray-900 dark:bg-gray-700 hover:bg-gray-800 dark:hover:bg-gray-600 text-white shadow-2xs cursor-pointer'
+                    } text-xs font-semibold py-2 px-1.5 rounded-xl transition`}
                   >
                     {inWishlist ? <Check className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />}
-                    <span>{inWishlist ? 'Wishlisted' : 'Wishlist'}</span>
+                    <span className="truncate">{inWishlist ? 'Wishlisted' : 'Wishlist'}</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => onOpenSniper(card)}
-                    className="flex items-center justify-center gap-1.5 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 text-xs font-bold py-2 px-3 rounded-xl transition"
+                    className="flex items-center justify-center gap-1 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 text-xs font-bold py-2 px-1.5 rounded-xl transition cursor-pointer"
                   >
                     <Target className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                    <span>Snipe</span>
+                    <span className="truncate">Snipe</span>
                   </button>
                 </div>
-
-                {owned && (
-                  <div className="text-center pt-1">
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                      <CheckCircle2 className="w-3 h-3" />
-                      In Your Collection
-                    </span>
-                  </div>
-                )}
               </div>
             </div>
           );

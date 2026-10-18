@@ -6,7 +6,7 @@ import { CardRow } from './CardRow';
 import { CardGrid } from './CardGrid';
 import { SortHeader } from '../ui/SortHeader';
 import { TcgToggle } from '../ui/TcgToggle';
-import { GRADE_OPTIONS } from '@/utils/constants';
+import { RAW_CONDITIONS, GRADED_OPTIONS } from '@/utils/constants';
 import { formatCurrency } from '@/utils/format';
 import {
   Search,
@@ -67,13 +67,21 @@ export function CardTable({
   const filteredAndSortedCards = useMemo(() => {
     return cards
       .filter((card) => {
-        // Game match
-        const gameMatch = (card.game || 'pokemon') === tcg;
-        if (!gameMatch) return false;
+        // Accurate Game matching for cross-language wishlist items
+        const isJa = card.game === 'pokemon-japan' || card.language === 'ja' || (card.name ? /\[(JA|JP)\]/i.test(card.name) : false);
+        const isOp = card.game === 'onepiece' || card.language === 'onepiece';
+        const cardGame: TcgGame = isJa ? 'pokemon-japan' : isOp ? 'onepiece' : (card.game || 'pokemon');
 
-        // Grade filter
-        if (gradeFilter !== 'All' && card.grade !== gradeFilter) {
-          return false;
+        if (cardGame !== tcg) return false;
+
+        // Grade / Condition filter
+        if (gradeFilter !== 'All') {
+          const cardGrade = card.grade || 'Near Mint';
+          if (gradeFilter === 'Near Mint') {
+            if (cardGrade !== 'Near Mint' && cardGrade !== 'Raw (Ungraded)') return false;
+          } else if (cardGrade !== gradeFilter) {
+            return false;
+          }
         }
 
         // Text search
@@ -181,18 +189,27 @@ export function CardTable({
             />
           </div>
 
-          {/* Grade filter */}
+          {/* Grade / Condition filter */}
           <select
             value={gradeFilter}
             onChange={(e) => setGradeFilter(e.target.value)}
             className="text-xs bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-xl px-2.5 py-1.5 outline-hidden focus:ring-2 focus:ring-blue-500 font-medium cursor-pointer"
           >
-            <option value="All">All Grades</option>
-            {GRADE_OPTIONS.map((g) => (
-              <option key={g} value={g}>
-                {g}
-              </option>
-            ))}
+            <option value="All">All Grades &amp; Conditions</option>
+            <optgroup label="Card Condition (Raw)">
+              {RAW_CONDITIONS.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Graded (Slabs)">
+              {GRADED_OPTIONS.map((g) => (
+                <option key={g} value={g}>
+                  {g}
+                </option>
+              ))}
+            </optgroup>
           </select>
         </div>
 
@@ -263,7 +280,7 @@ export function CardTable({
                 </th>
                 <th className="p-4">
                   <SortHeader
-                    label="Grade"
+                    label="Grade / Condition"
                     field="grade"
                     currentField={sortField}
                     currentOrder={sortOrder}

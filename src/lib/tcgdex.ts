@@ -55,9 +55,11 @@ export interface TcgdexSearchOptions {
   lang?: 'en' | 'ja' | 'ko' | 'zh-tw' | 'zh-cn';
 }
 
+const cardDetailCache = new Map<string, TcgdexCardDetail>();
+
 export async function searchTcgdexCards(
   queryOrOptions: string | TcgdexSearchOptions,
-  limitParam: number = 150
+  limitParam: number = 1000
 ): Promise<SearchCardResult[]> {
   try {
     const options: TcgdexSearchOptions =
@@ -70,7 +72,7 @@ export async function searchTcgdexCards(
     const category = options.category?.trim() || '';
     const trainerType = options.trainerType?.trim() || '';
     const rarities = options.rarities || [];
-    const limit = options.limit || 150;
+    const limit = options.limit || 1000;
     const baseUrl = `${TCGDEX_ROOT}/${lang}`;
 
     if (!query && !category && rarities.length === 0) return [];
@@ -133,18 +135,32 @@ export async function searchTcgdexCards(
     const fetchCount = trainerType ? Math.min(items.length, limit * 2) : Math.min(items.length, limit);
     const topItems = items.slice(0, fetchCount);
 
-    const detailed = await Promise.allSettled(
-      topItems.map(async (item): Promise<SearchCardResult | null> => {
-        try {
-          const detailRes = await fetch(`${baseUrl}/cards/${item.id}`, {
-            next: { revalidate: 3600 }
-          });
-          if (!detailRes.ok) throw new Error('Failed to fetch detail');
-          const d: TcgdexCardDetail = await detailRes.json();
+    // Fetch details in concurrent chunks of 60 with in-memory caching
+    const detailedResults: (SearchCardResult | null)[] = [];
+    const chunkSize = 60;
 
-          // Subtype check (e.g. Supporter)
-          if (trainerType && d.trainerType && d.trainerType.toLowerCase() !== trainerType.toLowerCase()) {
-            return null;
+    for (let i = 0; i < topItems.length; i += chunkSize) {
+      const chunk = topItems.slice(i, i + chunkSize);
+      const chunkPromises = chunk.map(async (item): Promise<SearchCardResult | null> => {
+        try {
+          const cacheKey = `${lang}_${item.id}`;
+          let d = cardDetailCache.get(cacheKey);
+
+          if (!d) {
+            const detailRes = await fetch(`${baseUrl}/cards/${item.id}`, {
+              next: { revalidate: 3600 }
+            });
+            if (!detailRes.ok) throw new Error('Failed to fetch detail');
+            d = (await detailRes.json()) as TcgdexCardDetail;
+            cardDetailCache.set(cacheKey, d);
+          }
+
+          // Subtype check (e.g. Supporter, Item, Stadium, Tool)
+          if (trainerType && d.trainerType) {
+            const types = trainerType.toLowerCase().split(',').map((t) => t.trim());
+            if (!types.includes(d.trainerType.toLowerCase())) {
+              return null;
+            }
           }
 
           // Extract best available TCGPlayer price and Product ID
@@ -252,12 +268,13 @@ export async function searchTcgdexCards(
             language: cardLang
           };
         }
-      })
-    );
+      });
 
-    return detailed
-      .filter((r): r is PromiseFulfilledResult<SearchCardResult | null> => r.status === 'fulfilled')
-      .map((r) => r.value)
+      const chunkResults = await Promise.all(chunkPromises);
+      detailedResults.push(...chunkResults);
+    }
+
+    return detailedResults
       .filter((card): card is SearchCardResult => card !== null)
       .slice(0, limit);
   } catch (error) {

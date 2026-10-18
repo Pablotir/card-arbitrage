@@ -199,6 +199,11 @@ function attachMultiLanguagePrices(
     const koPrice = shouldIncludeAsianAlts ? parseFloat((basePrice * 0.36).toFixed(2)) : null;
     const zhPrice = shouldIncludeAsianAlts ? parseFloat((basePrice * 0.48).toFixed(2)) : null;
 
+    const cleanName = (card.name || '').replace(/\s*\[(JA|EN|KO|ZH|OP|JP)\]/gi, '').trim();
+    const jaTcgLink = cleanName.toLowerCase() === 'skyla'
+      ? 'https://www.tcgplayer.com/product/602068/pokemon-japan-xy-p-xy-promos-skyla-164-xy-p?page=1&Language=all'
+      : `https://www.tcgplayer.com/search/pokemon-japan/product?productLineName=pokemon-japan&q=${encodeURIComponent(cleanName)}&view=grid`;
+
     const languages: Partial<Record<CardLanguage, MultiLangPrice>> = {
       en: {
         language: 'en',
@@ -206,14 +211,15 @@ function attachMultiLanguagePrices(
         price: enPrice,
         currency: 'USD',
         source: 'TCGPlayer',
-        link: card.tcgplayerId ? `https://www.tcgplayer.com/product/${card.tcgplayerId}` : undefined
+        link: card.tcgplayerId ? `https://www.tcgplayer.com/product/${card.tcgplayerId}?Language=English&Condition=Near+Mint&page=1` : undefined
       },
       ja: {
         language: 'ja',
         label: 'Japanese',
         price: jaPrice,
         currency: 'USD',
-        source: 'JustTCG / JP Market'
+        source: 'Est. JP Market (Arbitrage)',
+        link: jaTcgLink
       }
     };
 
@@ -280,7 +286,7 @@ export async function GET(request: Request) {
     const requestedLanguages = languagesParam
       ? (languagesParam.split(',').map((l) => l.trim().toLowerCase()).filter(Boolean) as CardLanguage[])
       : (['en', 'ja'] as CardLanguage[]);
-    const limit = parseInt(searchParams.get('limit') || '150', 10);
+    const limit = parseInt(searchParams.get('limit') || '1000', 10);
     const API_KEY = process.env.JUSTTCG_API_KEY;
 
     const hasSearchIntent = Boolean(q.trim() || category || trainerType || rarities.length > 0);
@@ -328,7 +334,7 @@ export async function GET(request: Request) {
               category,
               trainerType,
               rarities,
-              limit: Math.min(limit, 100),
+              limit: Math.min(limit, 400),
               lang: 'ja'
             });
             for (const c of tcgdexJa) {
@@ -414,7 +420,7 @@ export async function GET(request: Request) {
           category,
           trainerType,
           rarities,
-          limit: Math.min(limit, 50),
+          limit: Math.min(limit, 100),
           lang: 'ko'
         }).then((cards) =>
           cards.map((c) => ({
@@ -437,7 +443,7 @@ export async function GET(request: Request) {
           category,
           trainerType,
           rarities,
-          limit: Math.min(limit, 50),
+          limit: Math.min(limit, 100),
           lang: 'zh-tw'
         }).then((cards) =>
           cards.map((c) => ({

@@ -1,4 +1,27 @@
+export const RAW_CONDITIONS = [
+  'Near Mint',
+  'Lightly Played',
+  'Moderately Played',
+  'Heavily Played',
+  'Damaged'
+] as const;
+
+export const GRADED_OPTIONS = [
+  'PSA 10',
+  'PSA 9',
+  'PSA 8',
+  'CGC 10',
+  'BGS 10',
+  'BGS 10 Black Label',
+  'CGC 10 Pristine'
+] as const;
+
 export const GRADE_OPTIONS = [
+  'Near Mint',
+  'Lightly Played',
+  'Moderately Played',
+  'Heavily Played',
+  'Damaged',
   'Raw (Ungraded)',
   'PSA 10',
   'PSA 9',
@@ -13,6 +36,8 @@ export const CONDITION_OPTIONS = [
   'Near Mint',
   'Lightly Played',
   'Moderately Played',
+  'Heavily Played',
+  'Damaged',
   'Any'
 ] as const;
 

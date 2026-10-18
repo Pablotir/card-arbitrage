@@ -14,6 +14,7 @@ import {
   migrateCloudToLocal,
   clearCloudCards
 } from '@/lib/storage';
+import { formatTcgplayerLink } from '@/utils/cardLinks';
 
 async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
   try {
@@ -120,25 +121,36 @@ export function useCards(userId: string) {
   };
 
   const addToTracked = async (card: SearchCardResult, game: TcgGame) => {
-    const tcgId = card.tcgplayerId || card.id;
-    const tcgLink = card.tcgplayerId
-      ? `https://www.tcgplayer.com/product/${card.tcgplayerId}`
-      : `https://justtcg.com/cards/${card.id}`;
+    const isJa = card.language === 'ja' || (card.name ? /\[(JA|JP)\]/i.test(card.name) : false) || game === 'pokemon-japan';
+    const isOp = card.game === 'onepiece' || card.language === 'onepiece' || game === 'onepiece';
+    const resolvedGame: TcgGame = isJa ? 'pokemon-japan' : isOp ? 'onepiece' : (game || 'pokemon');
+
+    const cleanCard: SearchCardResult = {
+      ...card,
+      game: resolvedGame,
+      language: card.language || (isJa ? 'ja' : isOp ? 'onepiece' : 'en')
+    };
+
+    const tcgId = cleanCard.tcgplayerId || cleanCard.id;
+    const tcgLink = formatTcgplayerLink({
+      ...cleanCard,
+      grade: 'Near Mint'
+    });
 
     const newCard = {
       user_id: userId,
       card_id: String(tcgId),
-      name: card.name,
-      set_name: card.setName || card.set_name || 'Expansion',
-      image: card.image || card.imageUrl || '',
-      grade: 'Raw (Ungraded)',
+      name: cleanCard.name,
+      set_name: cleanCard.setName || cleanCard.set_name || 'Expansion',
+      image: cleanCard.image || cleanCard.imageUrl || '',
+      grade: 'Near Mint',
       is_first_edition: false,
-      live_price: card.price ? String(card.price) : 'N/A',
+      live_price: cleanCard.price ? String(cleanCard.price) : 'N/A',
       status: 'tracked' as const,
       best_link: tcgLink,
-      best_source: card.price ? 'TCGPlayer' : '',
-      game: game,
-      language: card.language
+      best_source: cleanCard.price ? 'TCGPlayer' : '',
+      game: resolvedGame,
+      language: cleanCard.language
     };
 
     if (storageMode === 'local') {
@@ -207,6 +219,74 @@ export function useCards(userId: string) {
       return true;
     }
     return false;
+  };
+
+  const toggleCardOwned = async (card: SearchCardResult, game: TcgGame) => {
+    const tcgId = card.tcgplayerId || card.id;
+    const cardName = card.name.toLowerCase().trim();
+
+    // Check if card is currently in collection
+    const existing = myCollection.find((c) => {
+      if (c.card_id && String(c.card_id) === String(tcgId)) return true;
+      return c.name.toLowerCase().trim() === cardName;
+    });
+
+    if (existing) {
+      // Un-own: delete from collection
+      await deleteCard(existing.id);
+      return { status: 'removed' as const, card: existing };
+    }
+
+    // Add to collection
+    const numPrice = typeof card.price === 'string' ? parseFloat(card.price) : typeof card.price === 'number' ? card.price : 0;
+    const resolvedPurchasePrice = !isNaN(numPrice) && numPrice > 0 ? numPrice : 0;
+
+    const isJa = card.language === 'ja' || (card.name ? /\[(JA|JP)\]/i.test(card.name) : false) || game === 'pokemon-japan';
+    const isOp = card.game === 'onepiece' || card.language === 'onepiece' || game === 'onepiece';
+    const resolvedGame: TcgGame = isJa ? 'pokemon-japan' : isOp ? 'onepiece' : (game || 'pokemon');
+
+    const cleanCard: SearchCardResult = {
+      ...card,
+      game: resolvedGame,
+      language: card.language || (isJa ? 'ja' : isOp ? 'onepiece' : 'en')
+    };
+
+    const tcgLink = formatTcgplayerLink({
+      ...cleanCard,
+      grade: 'Near Mint'
+    });
+
+    const newCard = {
+      user_id: userId,
+      card_id: String(cleanCard.tcgplayerId || cleanCard.id),
+      name: cleanCard.name,
+      set_name: cleanCard.setName || cleanCard.set_name || 'Expansion',
+      image: cleanCard.image || cleanCard.imageUrl || '',
+      grade: 'Near Mint',
+      is_first_edition: false,
+      live_price: cleanCard.price ? String(cleanCard.price) : 'N/A',
+      purchase_price: resolvedPurchasePrice,
+      status: 'collection' as const,
+      best_link: tcgLink,
+      best_source: cleanCard.price ? 'TCGPlayer' : '',
+      game: resolvedGame,
+      language: cleanCard.language
+    };
+
+    if (storageMode === 'local') {
+      const created = saveLocalCard(newCard, 'collection');
+      setMyCollection((prev) => [created, ...prev]);
+      // Remove from wishlist if it was there
+      setMyList((prev) => prev.filter((w) => String(w.card_id) !== String(tcgId) && w.name.toLowerCase().trim() !== cardName));
+      return { status: 'added' as const, card: created };
+    }
+
+    const { data, error } = await supabase.from('cards').insert(newCard).select().single();
+    if (!error && data) {
+      setMyCollection((prev) => [data, ...prev]);
+      return { status: 'added' as const, card: data };
+    }
+    return { status: 'error' as const };
   };
 
   const handleBatchRefresh = async () => {
@@ -400,6 +480,7 @@ export function useCards(userId: string) {
     updateCardDetails,
     deleteCard,
     moveToCollection,
+    toggleCardOwned,
     handleBatchRefresh,
     handleEbayOnlyRefresh
   };

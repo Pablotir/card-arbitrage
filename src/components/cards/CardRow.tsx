@@ -1,7 +1,8 @@
 'use client';
 
 import { CardItem } from '@/lib/types';
-import { GRADE_OPTIONS } from '@/utils/constants';
+import { RAW_CONDITIONS, GRADED_OPTIONS } from '@/utils/constants';
+import { formatTcgplayerLink, formatEbayLink } from '@/utils/cardLinks';
 import { formatCurrency } from '@/utils/format';
 import { ExternalLink, Target, Trash2, ShoppingBag } from 'lucide-react';
 import { Badge } from '../ui/Badge';
@@ -23,6 +24,9 @@ export function CardRow({
   onDeleteClick
 }: CardRowProps) {
   const isEbayBest = card.best_source === 'eBay';
+  const dynamicTcgLink = formatTcgplayerLink(card);
+  const dynamicEbayLink = formatEbayLink(card);
+  const primaryLink = isEbayBest ? (card.ebay_link || dynamicEbayLink) : dynamicTcgLink;
 
   return (
     <tr className="hover:bg-gray-50/80 dark:hover:bg-gray-800/50 transition-colors border-b border-gray-100 dark:border-gray-800/60">
@@ -48,18 +52,30 @@ export function CardRow({
         </span>
       </td>
 
-      {/* Grade Selector */}
+      {/* Grade & Condition Selector */}
       <td className="p-4">
         <select
-          value={card.grade || 'Raw (Ungraded)'}
+          value={card.grade || 'Near Mint'}
           onChange={(e) => onGradeChange(card.id, e.target.value)}
-          className="text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-lg p-2 outline-hidden focus:ring-2 focus:ring-blue-500 font-medium block w-full max-w-[130px] cursor-pointer"
+          className="text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-lg p-2 outline-hidden focus:ring-2 focus:ring-blue-500 font-medium block w-full max-w-[155px] cursor-pointer"
         >
-          {GRADE_OPTIONS.map((g) => (
-            <option key={g} value={g}>
-              {g}
-            </option>
-          ))}
+          <optgroup label="Card Condition (Raw)">
+            {RAW_CONDITIONS.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+            {card.grade === 'Raw (Ungraded)' && (
+              <option value="Raw (Ungraded)">Raw (Ungraded)</option>
+            )}
+          </optgroup>
+          <optgroup label="Graded (Slabs)">
+            {GRADED_OPTIONS.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </optgroup>
         </select>
       </td>
 
@@ -70,35 +86,32 @@ export function CardRow({
             {formatCurrency(card.live_price)}
           </span>
 
-          {card.best_source && card.best_link && (
-            <a
-              href={card.best_link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1"
-            >
-              <Badge variant={isEbayBest ? 'ebay' : 'tcg'}>
-                {card.best_source}
-                <ExternalLink className="w-2.5 h-2.5 ml-0.5" />
-              </Badge>
-            </a>
-          )}
+          <a
+            href={primaryLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1"
+            title={`View on ${isEbayBest ? 'eBay' : 'TCGPlayer'}`}
+          >
+            <Badge variant={isEbayBest ? 'ebay' : 'tcg'}>
+              {card.best_source || (isEbayBest ? 'eBay' : 'TCGPlayer')}
+              <ExternalLink className="w-2.5 h-2.5 ml-0.5" />
+            </Badge>
+          </a>
         </div>
 
         {/* Opposite listing comparison (e.g. if TCG is primary, show eBay price) */}
-        {!isEbayBest && card.ebay_price && (
+        {!isEbayBest && (
           <div className="mt-1 flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
-            <span>eBay: {formatCurrency(card.ebay_price)}</span>
-            {card.ebay_link && (
-              <a
-                href={card.ebay_link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-0.5"
-              >
-                View
-              </a>
-            )}
+            <span>eBay: {formatCurrency(card.ebay_price || card.live_price)}</span>
+            <a
+              href={card.ebay_link || dynamicEbayLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-0.5"
+            >
+              Comps
+            </a>
           </div>
         )}
       </td>

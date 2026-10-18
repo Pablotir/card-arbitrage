@@ -3,6 +3,11 @@ export type CardLanguage = 'en' | 'ja' | 'ko' | 'zh' | 'onepiece';
 export type StorageMode = 'local' | 'cloud';
 
 export type CardGrade = 
+  | 'Near Mint'
+  | 'Lightly Played'
+  | 'Moderately Played'
+  | 'Heavily Played'
+  | 'Damaged'
   | 'Raw (Ungraded)'
   | 'PSA 10'
   | 'PSA 9'

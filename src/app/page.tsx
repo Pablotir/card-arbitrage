@@ -12,6 +12,7 @@ import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { SearchBar } from '@/components/search/SearchBar';
 import { SearchResults } from '@/components/search/SearchResults';
+import { SearchLoadingBanner } from '@/components/search/SearchLoadingBanner';
 import { CardTable } from '@/components/cards/CardTable';
 import { PortfolioStats } from '@/components/collection/PortfolioStats';
 import { CollectionTable } from '@/components/collection/CollectionTable';
@@ -33,6 +34,8 @@ export default function Home() {
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchCardResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchProgress, setSearchProgress] = useState(0);
+  const [searchStatus, setSearchStatus] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
   const [filters, setFilters] = useState<SearchFilterState>({
     languages: ['en', 'ja'], // Default to comparing English & Japanese
@@ -63,6 +66,7 @@ export default function Home() {
     updateCardDetails,
     deleteCard,
     moveToCollection,
+    toggleCardOwned,
     handleBatchRefresh,
     handleEbayOnlyRefresh
   } = useCards(userId);
@@ -191,8 +195,18 @@ export default function Home() {
   };
 
   // Search Handler with Multi-Language Routing
+  const lastQuerySignatureRef = useRef<string>('');
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const initialFilterSkip = useRef(true);
+
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+
+    // Cancel any pending debounced auto-search immediately to prevent double-firing
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+      searchTimeoutRef.current = null;
+    }
 
     const hasCategories = (filters.categories?.length || 0) > 0;
     const hasRarities = (filters.rarities?.length || 0) > 0;
@@ -204,14 +218,37 @@ export default function Home() {
       return;
     }
 
+    const currentSig = `${query.trim()}_${tcg}_${filters.languages.join(',')}_${filters.categories.join(',')}_${filters.rarities.join(',')}_${filters.onlyUnowned}`;
+    lastQuerySignatureRef.current = currentSig;
+
     setIsSearching(true);
     setHasSearched(true);
+    setSearchProgress(15);
+    setSearchStatus('Querying Pokémon catalogs across selected languages...');
+
+    const progressTimer = setInterval(() => {
+      setSearchProgress((prev) => {
+        if (prev >= 90) return prev;
+        if (prev < 40) return prev + 15;
+        if (prev < 75) return prev + 8;
+        return prev + 3;
+      });
+    }, 180);
+
+    const status1 = setTimeout(() => {
+      setSearchStatus('Retrieving official scans & live TCGPlayer pricing...');
+    }, 450);
+
+    const status2 = setTimeout(() => {
+      setSearchStatus('Compiling multi-language union & comparing live comps...');
+    }, 1100);
+
     try {
       const params = new URLSearchParams();
       if (query.trim()) params.set('q', query.trim());
 
-      // Set limit to 150 to ensure all 100+ cards are returned
-      params.set('limit', '150');
+      // Set limit to 1000 to return all 791+ matching cards
+      params.set('limit', '1000');
 
       // Always pass the selected game and languages
       params.set('game', tcg === 'pokemon-japan' ? 'pokemon' : tcg);
@@ -221,19 +258,28 @@ export default function Home() {
       }
 
       if (hasCategories) {
-        const hasSupporter = filters.categories.includes('Trainer - Supporter');
-        const hasItem = filters.categories.includes('Trainer - Item');
-        const hasStadium = filters.categories.includes('Trainer - Stadium');
-        const hasTrainer = filters.categories.some((c) => c.startsWith('Trainer'));
+        const hasSupporter = filters.categories.includes('Supporter') || filters.categories.includes('Trainer - Supporter');
+        const hasItem = filters.categories.includes('Item') || filters.categories.includes('Trainer - Item');
+        const hasStadium = filters.categories.includes('Stadium') || filters.categories.includes('Trainer - Stadium');
+        const hasTool = filters.categories.includes('Tool') || filters.categories.includes('Trainer - Tool');
+        const hasTrainer = filters.categories.includes('Trainer');
+        const hasPokemon = filters.categories.includes('Pokémon') || filters.categories.includes('Pokemon');
+        const hasEnergy = filters.categories.includes('Energy');
 
-        if (hasSupporter && !hasItem && !hasStadium) {
+        const trainerSubtypes: string[] = [];
+        if (hasSupporter) trainerSubtypes.push('Supporter');
+        if (hasItem) trainerSubtypes.push('Item');
+        if (hasStadium) trainerSubtypes.push('Stadium');
+        if (hasTool) trainerSubtypes.push('Tool');
+
+        if (trainerSubtypes.length > 0) {
           params.set('category', 'Trainer');
-          params.set('trainerType', 'Supporter');
+          params.set('trainerType', trainerSubtypes.join(','));
         } else if (hasTrainer) {
           params.set('category', 'Trainer');
-        } else if (filters.categories.includes('Pokémon')) {
+        } else if (hasPokemon) {
           params.set('category', 'Pokemon');
-        } else if (filters.categories.includes('Energy')) {
+        } else if (hasEnergy) {
           params.set('category', 'Energy');
         }
       }
@@ -251,17 +297,38 @@ export default function Home() {
     } catch {
       showToast('Failed to fetch cards. Please try again.', 'error');
     } finally {
-      setIsSearching(false);
+      clearInterval(progressTimer);
+      clearTimeout(status1);
+      clearTimeout(status2);
+      setSearchProgress(100);
+      setTimeout(() => {
+        setIsSearching(false);
+        setSearchProgress(0);
+      }, 180);
+    }
+  };
+
+  // Toggle Owned card handler
+  const handleToggleOwned = async (card: SearchCardResult) => {
+    const res = await toggleCardOwned(card, tcg);
+    if (res.status === 'added') {
+      showToast(`Marked "${card.name}" as Owned in your Collection!`, 'success');
+    } else if (res.status === 'removed') {
+      showToast(`Removed "${card.name}" from your Collection.`, 'info');
+    } else {
+      showToast('Failed to update Collection.', 'error');
     }
   };
 
   // Debounced auto-search when filters change so UI refreshes automatically without getting stuck
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const initialFilterSkip = useRef(true);
-
   useEffect(() => {
     if (initialFilterSkip.current) {
       initialFilterSkip.current = false;
+      return;
+    }
+
+    const currentSig = `${query.trim()}_${tcg}_${filters.languages.join(',')}_${filters.categories.join(',')}_${filters.rarities.join(',')}_${filters.onlyUnowned}`;
+    if (currentSig === lastQuerySignatureRef.current) {
       return;
     }
 
@@ -275,7 +342,7 @@ export default function Home() {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
       searchTimeoutRef.current = setTimeout(() => {
         handleSearch();
-      }, 350);
+      }, 250);
     }
     return () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
@@ -304,17 +371,22 @@ export default function Home() {
     if (frs.some((f) => cr.includes(f) || f.includes(cr))) return true;
 
     const EQUIV: Record<string, string[]> = {
+      'promo': ['promo', 'promos', 'black star promo', 'svp', 'swshp', 'smp'],
       'ultra rare': ['ur', 'sr', 'super rare'],
       'super rare': ['sr', 'ultra rare'],
       'special illustration rare': ['sar', 'special art rare', 'sir'],
       'illustration rare': ['ar', 'art rare', 'ir'],
       'art rare': ['ar', 'illustration rare', 'ir'],
+      'full art trainer': ['ultra rare', 'special illustration rare', 'sr', 'sar', 'full art'],
       'character rare': ['chr', 'character rare'],
       'character super rare': ['csr', 'character super rare'],
       'hyper rare': ['hr', 'ur', 'secret rare'],
       'secret rare': ['sec', 'ur', 'hyper rare', 'rainbow rare'],
       'double rare': ['rr', 'double rare', 'ex'],
-      'rare holo': ['r', 'holo', 'rare holo'],
+      'rare holo': ['r', 'holo', 'rare holo', 'holo rare'],
+      'holo rare': ['r', 'holo', 'rare holo', 'holo rare'],
+      'shiny holo rare': ['shiny', 'shiny holo rare', 's'],
+      'prism rare': ['prism', 'prism rare'],
       'kagayaku': ['radiant', 'kagayaku', 'sparkling']
     };
 
@@ -360,7 +432,14 @@ export default function Home() {
         const tLower = (card.trainerType || '').toLowerCase();
         return filters.categories.some((cat) => {
           const catLower = cat.toLowerCase();
-          return cLower.includes(catLower) || tLower.includes(catLower) || catLower.includes(cLower);
+          return (
+            cLower === catLower ||
+            tLower === catLower ||
+            cLower.includes(catLower) ||
+            tLower.includes(catLower) ||
+            catLower.includes(cLower) ||
+            catLower.includes(tLower)
+          );
         });
       });
     }
@@ -387,9 +466,16 @@ export default function Home() {
 
   // Add Card to Wishlist (Tracked)
   const handleAddWishlist = async (card: SearchCardResult) => {
-    const success = await addToTracked(card, tcg);
+    const isJa = card.language === 'ja' || (card.name ? /\[(JA|JP)\]/i.test(card.name) : false);
+    const isOp = card.game === 'onepiece' || card.language === 'onepiece';
+    const targetGame: TcgGame = isJa ? 'pokemon-japan' : isOp ? 'onepiece' : (card.game || tcg);
+
+    const success = await addToTracked(card, targetGame);
     if (success) {
-      showToast(`Added ${card.name} to your wishlist!`, 'success');
+      showToast(
+        `Added ${card.name} to your ${targetGame === 'pokemon-japan' ? 'Pokémon Japan' : 'Wishlist'}!`,
+        'success'
+      );
     } else {
       showToast('Failed to add card to wishlist.', 'error');
     }
@@ -399,16 +485,25 @@ export default function Home() {
   const handleAddOptimizedToList = async (card: SearchCardResult) => {
     const lang = card.cheapestLanguage || 'en';
     const langUpper = lang.toUpperCase();
+    const isJa = lang === 'ja';
+    const isOp = lang === 'onepiece';
+    const targetGame: TcgGame = isJa ? 'pokemon-japan' : isOp ? 'onepiece' : 'pokemon';
+
     const optimizedCard: SearchCardResult = {
       ...card,
       name: `${card.name} [${langUpper}]`,
       price: card.cheapestPrice ?? card.price,
-      language: lang
+      language: lang,
+      game: targetGame,
+      tcgplayerId: isJa ? undefined : card.tcgplayerId
     };
 
-    const success = await addToTracked(optimizedCard, tcg);
+    const success = await addToTracked(optimizedCard, targetGame);
     if (success) {
-      showToast(`Wishlisted cheapest version: ${optimizedCard.name} (${formatCurrency(optimizedCard.price)})!`, 'success');
+      showToast(
+        `Wishlisted ${optimizedCard.name} (${formatCurrency(optimizedCard.price)}) in ${targetGame === 'pokemon-japan' ? 'Pokémon Japan' : 'Wishlist'}!`,
+        'success'
+      );
     } else {
       showToast('Failed to add card to wishlist.', 'error');
     }
@@ -422,13 +517,19 @@ export default function Home() {
       if (alreadyWishlisted) continue;
 
       const lang = card.cheapestLanguage || 'en';
+      const isJa = lang === 'ja';
+      const isOp = lang === 'onepiece';
+      const targetGame: TcgGame = isJa ? 'pokemon-japan' : isOp ? 'onepiece' : 'pokemon';
+
       const optimizedCard: SearchCardResult = {
         ...card,
         name: `${card.name} [${lang.toUpperCase()}]`,
         price: card.cheapestPrice ?? card.price,
-        language: lang
+        language: lang,
+        game: targetGame,
+        tcgplayerId: isJa ? undefined : card.tcgplayerId
       };
-      const ok = await addToTracked(optimizedCard, tcg);
+      const ok = await addToTracked(optimizedCard, targetGame);
       if (ok) addedCount++;
     }
 
@@ -536,7 +637,12 @@ export default function Home() {
   };
 
   // Filtered lists for stats
-  const filteredCollection = myCollection.filter((c) => (c.game || 'pokemon') === tcg);
+  const filteredCollection = myCollection.filter((c) => {
+    const isJa = c.game === 'pokemon-japan' || c.language === 'ja' || (c.name ? /\[(JA|JP)\]/i.test(c.name) : false);
+    const isOp = c.game === 'onepiece' || c.language === 'onepiece';
+    const cardGame: TcgGame = isJa ? 'pokemon-japan' : isOp ? 'onepiece' : (c.game || 'pokemon');
+    return cardGame === tcg;
+  });
   const totalCost = filteredCollection.reduce((acc, c) => acc + (c.purchase_price || 0), 0);
   const totalValue = filteredCollection.reduce((acc, c) => acc + (parseFloat(c.live_price || '0') || 0), 0);
 
@@ -558,7 +664,12 @@ export default function Home() {
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        trackedCount={myList.filter((c) => (c.game || 'pokemon') === tcg).length}
+        trackedCount={myList.filter((c) => {
+          const isJa = c.game === 'pokemon-japan' || c.language === 'ja' || (c.name ? /\[(JA|JP)\]/i.test(c.name) : false);
+          const isOp = c.game === 'onepiece' || c.language === 'onepiece';
+          const cardGame: TcgGame = isJa ? 'pokemon-japan' : isOp ? 'onepiece' : (c.game || 'pokemon');
+          return cardGame === tcg;
+        }).length}
         collectionCount={filteredCollection.length}
         sniperCount={sniperRules.length}
         storageMode={storageMode}
@@ -610,24 +721,33 @@ export default function Home() {
             />
 
             {/* SEARCH RESULTS WITH MULTI-LANGUAGE PRICING */}
-            {displayedSearchResults.length > 0 ? (
+            {isSearching ? (
+              <SearchLoadingBanner
+                progress={searchProgress}
+                statusMessage={searchStatus}
+                targetCountText="791+ matching cards"
+              />
+            ) : displayedSearchResults.length > 0 ? (
               <SearchResults
                 results={displayedSearchResults}
                 onAddToList={handleAddWishlist}
                 onAddOptimizedToList={handleAddOptimizedToList}
                 onAddAllOptimized={handleAddAllOptimized}
                 onOpenSniper={handleOpenSniperModal}
+                onToggleOwned={handleToggleOwned}
                 isOwned={(card) =>
-                  myCollection.some((c) => c.name.toLowerCase().trim() === card.name.toLowerCase().trim())
+                  myCollection.some((c) => {
+                    if (card.id && c.card_id && String(c.card_id) === String(card.id)) return true;
+                    return c.name.toLowerCase().trim() === card.name.toLowerCase().trim();
+                  })
                 }
                 isTracked={(card) =>
-                  myList.some((c) => c.name.toLowerCase().trim() === card.name.toLowerCase().trim())
+                  myList.some((c) => {
+                    if (card.id && c.card_id && String(c.card_id) === String(card.id)) return true;
+                    return c.name.toLowerCase().trim() === card.name.toLowerCase().trim();
+                  })
                 }
               />
-            ) : isSearching ? (
-              <div className="bg-white dark:bg-gray-800/90 rounded-2xl p-8 text-center text-gray-500 border border-gray-100 dark:border-gray-700/80">
-                <p className="animate-pulse font-medium text-sm">Searching cards &amp; comparing multi-language prices...</p>
-              </div>
             ) : hasSearched ? (
               <div className="bg-white dark:bg-gray-800/90 rounded-2xl p-8 text-center text-gray-500 border border-gray-100 dark:border-gray-700/80">
                 {filters.onlyUnowned ? (

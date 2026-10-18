@@ -22,33 +22,39 @@ const LANGUAGE_OPTIONS: Array<{ id: CardLanguage; label: string; flag: string }>
 ];
 
 const CATEGORY_OPTIONS = [
-  'Trainer - Supporter',
-  'Trainer - Item',
-  'Trainer - Stadium',
-  'Trainer - Tool',
+  'Supporter',
+  'Item',
+  'Stadium',
+  'Tool',
+  'Trainer',
   'Pokémon',
   'Energy',
 ];
 
 const RARITY_OPTIONS = [
+  'Promo',
+  'Ultra Rare',
+  'Special Illustration Rare',
+  'Secret Rare',
+  'Illustration Rare',
+  'Art Rare',
+  'Hyper Rare',
+  'Super Rare',
+  'Full Art Trainer',
+  'Shiny Holo Rare',
+  'Prism Rare',
+  'Classic Collection',
   'Character Rare',
   'Character Super Rare',
-  'Rare Holo LEGEND',
   'Kagayaku',
-  'Classic Collection',
-  'Ultra Rare',
-  'Art Rare',
-  'Special Illustration Rare',
-  'Super Rare',
-  'Illustration Rare',
-  'Hyper Rare',
-  'Secret Rare',
-  'Double Rare',
-  'ACE SPEC Rare',
+  'Holo Rare',
   'Rare Holo',
   'Rare',
+  'Double Rare',
+  'ACE SPEC Rare',
   'Uncommon',
   'Common',
+  'None',
 ];
 
 const CONDITION_OPTIONS = [
@@ -107,8 +113,19 @@ export function FilterBar({
     onChange({
       ...filters,
       languages: ['en', 'ja'],
-      categories: ['Trainer - Supporter'],
-      rarities: ['Ultra Rare', 'Special Illustration Rare', 'Super Rare', 'Character Super Rare'],
+      categories: ['Supporter'],
+      rarities: [
+        'Promo',
+        'Ultra Rare',
+        'Special Illustration Rare',
+        'Secret Rare',
+        'Super Rare',
+        'Illustration Rare',
+        'Art Rare',
+        'Character Super Rare',
+        'Character Rare',
+        'Full Art Trainer'
+      ],
       onlyUnowned: true
     });
     if (onApplySearch) setTimeout(onApplySearch, 50);

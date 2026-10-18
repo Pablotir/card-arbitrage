@@ -1,7 +1,8 @@
 'use client';
 
 import { CardItem } from '@/lib/types';
-import { GRADE_OPTIONS } from '@/utils/constants';
+import { RAW_CONDITIONS, GRADED_OPTIONS } from '@/utils/constants';
+import { formatTcgplayerLink, formatEbayLink } from '@/utils/cardLinks';
 import { formatCurrency } from '@/utils/format';
 import { ExternalLink, Target, Trash2, ShoppingBag } from 'lucide-react';
 import { Badge } from '../ui/Badge';
@@ -28,6 +29,10 @@ export function CardGrid({
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-4">
       {cards.map((card) => {
         const isEbayBest = card.best_source === 'eBay';
+        const dynamicTcgLink = formatTcgplayerLink(card);
+        const dynamicEbayLink = formatEbayLink(card);
+        const primaryLink = isEbayBest ? (card.ebay_link || dynamicEbayLink) : dynamicTcgLink;
+
         return (
           <div
             key={card.id}
@@ -52,18 +57,30 @@ export function CardGrid({
                 {card.set_name || 'Expansion'}
               </span>
 
-              {/* Grade Selector */}
+              {/* Grade / Condition Selector */}
               <div className="mt-3">
                 <select
-                  value={card.grade || 'Raw (Ungraded)'}
+                  value={card.grade || 'Near Mint'}
                   onChange={(e) => onGradeChange(card.id, e.target.value)}
                   className="w-full text-xs bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-lg p-1.5 outline-hidden focus:ring-2 focus:ring-blue-500 font-medium cursor-pointer"
                 >
-                  {GRADE_OPTIONS.map((g) => (
-                    <option key={g} value={g}>
-                      {g}
-                    </option>
-                  ))}
+                  <optgroup label="Card Condition (Raw)">
+                    {RAW_CONDITIONS.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                    {card.grade === 'Raw (Ungraded)' && (
+                      <option value="Raw (Ungraded)">Raw (Ungraded)</option>
+                    )}
+                  </optgroup>
+                  <optgroup label="Graded (Slabs)">
+                    {GRADED_OPTIONS.map((g) => (
+                      <option key={g} value={g}>
+                        {g}
+                      </option>
+                    ))}
+                  </optgroup>
                 </select>
               </div>
 
@@ -76,18 +93,17 @@ export function CardGrid({
                   </span>
                 </div>
 
-                {card.best_source && card.best_link && (
-                  <a
-                    href={card.best_link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Badge variant={isEbayBest ? 'ebay' : 'tcg'}>
-                      {card.best_source}
-                      <ExternalLink className="w-2.5 h-2.5 ml-1" />
-                    </Badge>
-                  </a>
-                )}
+                <a
+                  href={primaryLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`View on ${isEbayBest ? 'eBay' : 'TCGPlayer'}`}
+                >
+                  <Badge variant={isEbayBest ? 'ebay' : 'tcg'}>
+                    {card.best_source || (isEbayBest ? 'eBay' : 'TCGPlayer')}
+                    <ExternalLink className="w-2.5 h-2.5 ml-1" />
+                  </Badge>
+                </a>
               </div>
             </div>
 
