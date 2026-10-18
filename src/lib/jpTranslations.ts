@@ -1,4 +1,5 @@
 import { SearchCardResult } from './types';
+import { isTrueJapaneseExclusive } from './exclusiveRegistry';
 
 // Comprehensive dictionary mapping Japanese card & trainer names to their official English releases
 export const JP_TRAINER_NAME_MAP: Record<string, string> = {
@@ -375,6 +376,10 @@ export {
   isTrueJapaneseExclusive
 } from './exclusiveRegistry';
 
+import { translateAsianCardName } from './asianTranslations';
+
+export { translateAsianCardName };
+
 /**
  * Translates a Japanese card name to English using dictionary matches or partial matches.
  */
@@ -382,19 +387,25 @@ export function translateJapaneseCardName(rawJpName: string): { englishName: str
   if (!rawJpName) return { englishName: '', isTranslated: false };
   const clean = rawJpName.replace(/\s*\[(JA|JP)\]/gi, '').trim();
 
-  // 1. Direct exact dictionary match
+  // 1. Try universal Asian translation dictionary first
+  const asianRes = translateAsianCardName(clean);
+  if (asianRes.isTranslated) {
+    return asianRes;
+  }
+
+  // 2. Direct exact dictionary match
   if (JP_TRAINER_NAME_MAP[clean]) {
     return { englishName: JP_TRAINER_NAME_MAP[clean], isTranslated: true };
   }
 
-  // 2. Partial prefix / substring match for Japanese text (longer phrases first)
+  // 3. Partial prefix / substring match for Japanese text (longer phrases first)
   for (const jpKey of SORTED_JP_KEYS) {
     if (clean.includes(jpKey) || jpKey.includes(clean)) {
       return { englishName: JP_TRAINER_NAME_MAP[jpKey], isTranslated: true };
     }
   }
 
-  // 3. Already in English / Romaji with suffixes (e.g., "Misty's Favor - 104/094 (Super Rare)")
+  // 4. Already in English / Romaji with suffixes (e.g., "Misty's Favor - 104/094 (Super Rare)")
   const normalized = normalizeCardName(clean);
   if (normalized && !/[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf]/.test(clean)) {
     return { englishName: normalized, isTranslated: false };
@@ -411,6 +422,11 @@ export function findEnglishCounterpart(
   jpCard: SearchCardResult,
   enCards: SearchCardResult[]
 ): SearchCardResult | null {
+  // If it is a true verified exclusive (e.g. Tag All Stars Will, Bellelba, Hapu, Clay, Sightseer), it NEVER has an English counterpart
+  if (isTrueJapaneseExclusive(jpCard)) {
+    return null;
+  }
+
   const { englishName } = translateJapaneseCardName(jpCard.name);
   if (!englishName) return null;
 
@@ -425,9 +441,18 @@ export function findEnglishCounterpart(
   }
 
   if (matches.length === 0) return null;
+
+  // If the Japanese card is a High Rarity card (Ultra Rare, Secret Rare, SAR, Super Rare),
+  // it must match an English card of high rarity tier! It must NEVER match a regular Uncommon or Common.
+  const highTierMatches = matches.filter((en) => isHighRarityCard(en.rarity, en.name));
+  if (jpIsHigh) {
+    if (highTierMatches.length > 0) return highTierMatches[0];
+    // If English ONLY has Uncommon/Common and no Ultra Rare, this high-rarity art is exclusive to Japan!
+    return null;
+  }
+
   if (matches.length === 1) return matches[0];
 
-  // If multiple versions exist (e.g. regular uncommon vs full art ultra rare), match matching rarity tier
   const tierMatch = matches.find((en) => isHighRarityCard(en.rarity, en.name) === jpIsHigh);
   return tierMatch || matches[0];
 }

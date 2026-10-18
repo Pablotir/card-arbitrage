@@ -1,5 +1,6 @@
 import { SearchCardResult, SetInfo } from './types';
 import { getKnownCardPrice } from './knownPrices';
+import { translateAsianCardName } from './asianTranslations';
 
 const TCGDEX_ROOT = 'https://api.tcgdex.net/v2';
 
@@ -18,6 +19,10 @@ interface TcgdexCardDetail {
   rarity?: string;
   category?: string;
   trainerType?: string;
+  hp?: number | string;
+  types?: string[];
+  stage?: string;
+  attacks?: any[];
   set?: {
     id: string;
     name: string;
@@ -138,6 +143,7 @@ export async function searchTcgdexCards(
                 const params = new URLSearchParams();
                 params.set('rarity', r);
                 if (category) params.set('category', category);
+                if (trainerType) params.set('trainerType', trainerType);
                 if (qv) params.set('name', qv);
 
                 const res = await fetch(`${baseUrl}/cards?${params.toString()}`, {
@@ -169,6 +175,7 @@ export async function searchTcgdexCards(
           const params = new URLSearchParams();
           if (qv) params.set('name', qv);
           if (category) params.set('category', category);
+          if (trainerType) params.set('trainerType', trainerType);
 
           const res = await fetch(`${baseUrl}/cards?${params.toString()}`, {
             next: { revalidate: 3600 }
@@ -219,9 +226,32 @@ export async function searchTcgdexCards(
           }
 
           // Subtype check (e.g. Supporter, Item, Stadium, Tool)
-          if (trainerType && d.trainerType) {
+          if (trainerType) {
+            if (!d.trainerType) return null;
             const types = trainerType.toLowerCase().split(',').map((t) => t.trim());
             if (!types.includes(d.trainerType.toLowerCase())) {
+              return null;
+            }
+          }
+
+          // Category check
+          if (category) {
+            const catLower = category.toLowerCase().trim();
+            const dCatLower = (d.category || '').toLowerCase().trim();
+            if (catLower === 'trainer' && dCatLower === 'pokemon') return null;
+            if (catLower === 'pokemon' && dCatLower === 'trainer') return null;
+          }
+
+          // Strict validation: If looking for Supporters/Trainers, strictly reject Pokemon cards
+          if (trainerType?.toLowerCase().includes('supporter') || category?.toLowerCase() === 'trainer') {
+            if (d.hp || (d.types && d.types.length > 0) || d.stage || (d.attacks && d.attacks.length > 0)) {
+              return null;
+            }
+            const rawLower = (d.name || '').toLowerCase();
+            if (/\b(ex|vmax|vstar|gx|lv\.x)\b/i.test(rawLower) || /ex$/i.test(rawLower)) {
+              return null;
+            }
+            if (['sv-p-012', 'sv-p-020', 'sv-p-021'].includes((d.id || '').toLowerCase())) {
               return null;
             }
           }
@@ -286,30 +316,49 @@ export async function searchTcgdexCards(
 
           // Robust multi-tier image resolution across languages:
           // 1. TCGdex high.webp
-          // 2. pokemontcg.io official scan (EN)
-          // 3. Limitless TCG CDN (JP)
-          // 4. TCGplayer CDN
+          // 2. Canonical Asian set scan (assets.tcgdex.net/ja/...)
+          // 3. pokemontcg.io official scan (EN)
+          // 4. TCGplayer CDN (EN only)
           let imageUrl = '';
           const imageBase = d.image || item.image;
-          const cleanLocalId = parseInt(d.localId || '0', 10);
+          const cleanLocalId = d.localId || item.localId || '';
+          const rawSetId = d.set?.id || item.id?.split('-')[0] || '';
 
           if (imageBase) {
             imageUrl = `${imageBase}/high.webp`;
+          } else if (lang === 'zh-tw' || lang === 'zh-cn' || lang === 'ko' || lang === 'ja') {
+            // Asian sets (JP, KR, ZH) share identical set IDs and local card numbers
+            const series = rawSetId.toUpperCase().startsWith('SV')
+              ? 'SV'
+              : rawSetId.toUpperCase().startsWith('SM')
+              ? 'SM'
+              : rawSetId.toUpperCase().startsWith('SWSH') || rawSetId.toUpperCase().startsWith('S')
+              ? 'SWSH'
+              : rawSetId.toUpperCase().startsWith('XY')
+              ? 'XY'
+              : rawSetId.toUpperCase().startsWith('BW')
+              ? 'BW'
+              : 'SV';
+
+            if (rawSetId && cleanLocalId) {
+              imageUrl = `https://assets.tcgdex.net/ja/${series}/${rawSetId}/${cleanLocalId}/high.webp`;
+            }
           } else if (lang === 'en' && d.set?.id && d.localId) {
             const setSlug = d.set.id.replace('.', '').toLowerCase();
             imageUrl = `https://images.pokemontcg.io/${setSlug}/${d.localId}.png`;
-          } else if (lang === 'ja' && d.set?.id && cleanLocalId > 0) {
-            imageUrl = `https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpc/${d.set.id}/${d.set.id}_${cleanLocalId}_R_JP.png`;
-          } else if (tcgId) {
+          } else if (tcgId && lang === 'en') {
             imageUrl = `https://product-images.tcgplayer.com/fit-in/438x438/${tcgId}.jpg`;
           }
 
           const cardLang = lang === 'zh-tw' || lang === 'zh-cn' ? 'zh' : (lang as any);
+          const rawCardName = d.name || item.name || '';
+          const { englishName, isTranslated } = translateAsianCardName(rawCardName);
+          const finalName = isTranslated ? englishName : rawCardName;
 
           return {
             id: d.id,
             tcgplayerId: tcgId,
-            name: d.name,
+            name: finalName,
             setName: d.set?.name || 'Pokémon TCG',
             set_name: d.set?.name || 'Pokémon TCG',
             image: imageUrl,
@@ -324,13 +373,29 @@ export async function searchTcgdexCards(
             pricingSource: bestPrice ? pricingSource : undefined
           };
         } catch {
-          if (trainerType) return null;
+          if (trainerType || category) return null;
           const imageBase = item.image;
-          const imageUrl = imageBase ? `${imageBase}/high.webp` : '';
+          const rawSetId = item.id?.split('-')[0] || '';
+          const rawLocalId = item.localId || item.id?.split('-')[1] || '';
+          const series = rawSetId.toUpperCase().startsWith('SV')
+            ? 'SV'
+            : rawSetId.toUpperCase().startsWith('SM')
+            ? 'SM'
+            : rawSetId.toUpperCase().startsWith('SWSH') || rawSetId.toUpperCase().startsWith('S')
+            ? 'SWSH'
+            : 'SV';
+
+          let imageUrl = imageBase ? `${imageBase}/high.webp` : '';
+          if (!imageUrl && rawSetId && rawLocalId) {
+            imageUrl = `https://assets.tcgdex.net/ja/${series}/${rawSetId}/${rawLocalId}/high.webp`;
+          }
+
           const cardLang = lang === 'zh-tw' || lang === 'zh-cn' ? 'zh' : (lang as any);
+          const { englishName, isTranslated } = translateAsianCardName(item.name || '');
+
           return {
             id: item.id,
-            name: item.name,
+            name: isTranslated ? englishName : item.name,
             setName: 'Pokémon TCG',
             set_name: 'Pokémon TCG',
             image: imageUrl,

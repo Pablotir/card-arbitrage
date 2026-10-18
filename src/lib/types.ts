@@ -74,6 +74,9 @@ export interface SearchCardResult {
   trainerType?: string;
   game?: TcgGame;
   language?: CardLanguage;
+  hp?: number | string;
+  types?: string[];
+  stage?: string;
 
   // Multi-Language Cost Comparison & Optimization
   languages?: Partial<Record<CardLanguage, MultiLangPrice>>;

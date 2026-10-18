@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { searchEbay } from '../utils/ebay'; 
 import { searchTcgdexCards } from '@/lib/tcgdex';
 import { CardLanguage, MultiLangPrice, SearchCardResult } from '@/lib/types';
-import { translateJapaneseCardName, findEnglishCounterpart } from '@/lib/jpTranslations';
+import { translateJapaneseCardName, findEnglishCounterpart, translateAsianCardName } from '@/lib/jpTranslations';
 import {
   isTrueJapaneseExclusive,
   isTrueChineseExclusive,
@@ -639,18 +639,25 @@ export async function GET(request: Request) {
 
     // 3. Add Korean cards
     for (const card of koResults) {
+      const { englishName, isTranslated } = translateAsianCardName(card.name);
+      const displayName = isTranslated ? englishName : card.name;
       const key = `ko-${card.id}`;
       if (!combinedMap.has(key)) {
-        combinedMap.set(key, card);
+        combinedMap.set(key, {
+          ...card,
+          name: displayName,
+          language: 'ko',
+          pricingSource: card.pricingSource || 'Asian Comps'
+        });
       }
     }
 
     // 4. Add Chinese cards: only mark as exclusive if strictly verified by isTrueChineseExclusive
     for (const card of zhResults) {
       const isZhExclusive = isTrueChineseExclusive(card);
-      const displayName = isZhExclusive
-        ? (card.name.includes('[ZH Exclusive]') ? card.name : `${card.name} [ZH Exclusive]`)
-        : card.name.replace(/\s*\[ZH Exclusive\]/gi, '');
+      const { englishName, isTranslated } = translateAsianCardName(card.name);
+      const cleanBase = isTranslated ? englishName : card.name.replace(/\s*\[(ZH|CH) Exclusive\]/gi, '');
+      const displayName = isZhExclusive ? `${cleanBase} [CH Exclusive]` : cleanBase;
 
       const key = `zh-${card.id}`;
       if (!combinedMap.has(key)) {
@@ -672,7 +679,7 @@ export async function GET(request: Request) {
       }
     }
 
-    // 6. Merge matching curated true exclusives (McDonald's Burgerchu, Gem Pack, Scream, Poncho, Stamp Box, etc.)
+    // 6. Merge matching curated true exclusives
     for (const curated of CURATED_TRUE_EXCLUSIVES) {
       if (curated.language === 'ja' && !wantJa) continue;
       if (curated.language === 'zh' && !wantZh) continue;
@@ -690,6 +697,16 @@ export async function GET(request: Request) {
       if (category) {
         const catLower = category.toLowerCase();
         if (catLower.includes('trainer') && !curated.category?.toLowerCase().includes('trainer')) {
+          continue;
+        }
+        if (catLower.includes('pokemon') && curated.category?.toLowerCase() !== 'pokemon') {
+          continue;
+        }
+      }
+
+      if (trainerType) {
+        const tLower = trainerType.toLowerCase().trim();
+        if (!curated.trainerType || !curated.trainerType.toLowerCase().includes(tLower)) {
           continue;
         }
       }

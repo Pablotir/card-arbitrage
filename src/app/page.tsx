@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { CardItem, SearchCardResult, TcgGame, DealItem, SearchFilterState } from '@/lib/types';
+import { CardItem, SearchCardResult, TcgGame, DealItem, SearchFilterState, CardLanguage } from '@/lib/types';
 import { useTheme } from '@/hooks/useTheme';
 import { useCards } from '@/hooks/useCards';
 import { useSniper } from '@/hooks/useSniper';
@@ -465,18 +465,33 @@ export default function Home() {
     // Filter by Category multi-select
     if (filters.categories?.length > 0) {
       list = list.filter((card) => {
-        if (!card.category && !card.trainerType) return true;
-        const cLower = (card.category || '').toLowerCase();
-        const tLower = (card.trainerType || '').toLowerCase();
+        const cLower = (card.category || '').toLowerCase().trim();
+        const tLower = (card.trainerType || '').toLowerCase().trim();
         return filters.categories.some((cat) => {
-          const catLower = cat.toLowerCase();
+          const catLower = cat.toLowerCase().trim();
+          if (catLower === 'supporter') {
+            // Must NOT be a Pokemon card
+            if (cLower === 'pokemon') return false;
+            if (card.types && card.types.length > 0) return false;
+            if (card.hp) return false;
+            // Supporter matching
+            if (tLower === 'supporter' || cLower === 'supporter') return true;
+            if (cLower === 'trainer' && (!tLower || tLower === 'supporter')) return true;
+            return false;
+          }
+          if (catLower === 'trainer') {
+            if (cLower === 'pokemon') return false;
+            return cLower === 'trainer' || Boolean(tLower);
+          }
+          if (catLower === 'pokemon') {
+            return cLower === 'pokemon' || (!cLower && !tLower && (Boolean(card.types?.length) || Boolean(card.hp)));
+          }
+          if (catLower === 'energy') {
+            return cLower === 'energy';
+          }
           return (
-            cLower === catLower ||
-            tLower === catLower ||
-            cLower.includes(catLower) ||
-            tLower.includes(catLower) ||
-            catLower.includes(cLower) ||
-            catLower.includes(tLower)
+            (cLower && cLower === catLower) ||
+            (tLower && tLower === catLower)
           );
         });
       });
@@ -534,18 +549,27 @@ export default function Home() {
     }
   };
 
-  // Add single optimized lowest-cost version to Wishlist
-  const handleAddOptimizedToList = async (card: SearchCardResult) => {
-    const lang = card.cheapestLanguage || 'en';
-    const langUpper = lang.toUpperCase();
+  // Add single optimized or chosen language version to Wishlist
+  const handleAddOptimizedToList = async (card: SearchCardResult, targetLang?: CardLanguage) => {
+    const lang = targetLang || card.cheapestLanguage || 'en';
+    const langUpper = lang === 'zh' ? 'CH' : lang.toUpperCase();
     const isJa = lang === 'ja';
     const isOp = lang === 'onepiece';
     const targetGame: TcgGame = isJa ? 'pokemon-japan' : isOp ? 'onepiece' : 'pokemon';
 
+    let chosenPrice = card.price;
+    if (targetLang && card.languages && card.languages[targetLang]?.price != null) {
+      chosenPrice = card.languages[targetLang]?.price;
+    } else if (card.cheapestPrice != null) {
+      chosenPrice = card.cheapestPrice;
+    }
+
+    const cleanBaseName = card.name.replace(/\s*\[(EN|JA|JP|KO|ZH|CH|OP)\]/gi, '').trim();
+
     const optimizedCard: SearchCardResult = {
       ...card,
-      name: `${card.name} [${langUpper}]`,
-      price: card.cheapestPrice ?? card.price,
+      name: `${cleanBaseName} [${langUpper}]`,
+      price: chosenPrice,
       language: lang,
       game: targetGame,
       tcgplayerId: isJa ? undefined : card.tcgplayerId
@@ -566,17 +590,19 @@ export default function Home() {
   const handleAddAllOptimized = async (cards: SearchCardResult[]) => {
     let addedCount = 0;
     for (const card of cards) {
-      const alreadyWishlisted = myList.some((w) => w.name.toLowerCase().includes(card.name.toLowerCase()));
+      const cleanBaseName = card.name.replace(/\s*\[(EN|JA|JP|KO|ZH|CH|OP)\]/gi, '').trim();
+      const alreadyWishlisted = myList.some((w) => w.name.toLowerCase().includes(cleanBaseName.toLowerCase()));
       if (alreadyWishlisted) continue;
 
       const lang = card.cheapestLanguage || 'en';
+      const langUpper = lang === 'zh' ? 'CH' : lang.toUpperCase();
       const isJa = lang === 'ja';
       const isOp = lang === 'onepiece';
       const targetGame: TcgGame = isJa ? 'pokemon-japan' : isOp ? 'onepiece' : 'pokemon';
 
       const optimizedCard: SearchCardResult = {
         ...card,
-        name: `${card.name} [${lang.toUpperCase()}]`,
+        name: `${cleanBaseName} [${langUpper}]`,
         price: card.cheapestPrice ?? card.price,
         language: lang,
         game: targetGame,
@@ -588,6 +614,48 @@ export default function Home() {
 
     if (addedCount > 0) {
       showToast(`Added ${addedCount} optimized lowest-cost cards to your Wishlist!`, 'success');
+    } else {
+      showToast('All matching cards are already in your Wishlist!', 'info');
+    }
+  };
+
+  // Quick Add Batch of Selected Language Versions to Wishlist
+  const handleAddBatchSelected = async (items: { card: SearchCardResult; language: CardLanguage }[]) => {
+    let addedCount = 0;
+    for (const item of items) {
+      const { card, language } = item;
+      const cleanBaseName = card.name.replace(/\s*\[(EN|JA|JP|KO|ZH|CH|OP)\]/gi, '').trim();
+      const alreadyWishlisted = myList.some((w) => w.name.toLowerCase().includes(cleanBaseName.toLowerCase()));
+      if (alreadyWishlisted) continue;
+
+      const lang = language || card.cheapestLanguage || 'en';
+      const langUpper = lang === 'zh' ? 'CH' : lang.toUpperCase();
+      const isJa = lang === 'ja';
+      const isOp = lang === 'onepiece';
+      const targetGame: TcgGame = isJa ? 'pokemon-japan' : isOp ? 'onepiece' : 'pokemon';
+
+      let chosenPrice = card.price;
+      if (card.languages && card.languages[lang]?.price != null) {
+        chosenPrice = card.languages[lang]?.price;
+      } else if (card.cheapestPrice != null) {
+        chosenPrice = card.cheapestPrice;
+      }
+
+      const optimizedCard: SearchCardResult = {
+        ...card,
+        name: `${cleanBaseName} [${langUpper}]`,
+        price: chosenPrice,
+        language: lang,
+        game: targetGame,
+        tcgplayerId: isJa ? undefined : card.tcgplayerId
+      };
+
+      const ok = await addToTracked(optimizedCard, targetGame);
+      if (ok) addedCount++;
+    }
+
+    if (addedCount > 0) {
+      showToast(`Added ${addedCount} custom selected cards to your Wishlist!`, 'success');
     } else {
       showToast('All matching cards are already in your Wishlist!', 'info');
     }
@@ -787,6 +855,7 @@ export default function Home() {
                 onAddToList={handleAddWishlist}
                 onAddOptimizedToList={handleAddOptimizedToList}
                 onAddAllOptimized={handleAddAllOptimized}
+                onAddBatchSelected={handleAddBatchSelected}
                 onOpenSniper={handleOpenSniperModal}
                 onToggleOwned={handleToggleOwned}
                 isOwned={(card) =>

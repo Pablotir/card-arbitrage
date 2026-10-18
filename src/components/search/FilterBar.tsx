@@ -18,7 +18,7 @@ const LANGUAGE_OPTIONS: Array<{ id: CardLanguage; label: string; flag: string }>
   { id: 'en', label: 'English (EN)', flag: '🇺🇸' },
   { id: 'ja', label: 'Japanese (JP)', flag: '🇯🇵' },
   { id: 'ko', label: 'Korean (KR)', flag: '🇰🇷' },
-  { id: 'zh', label: 'Chinese (ZH)', flag: '🇨🇳' },
+  { id: 'zh', label: 'Chinese (CH)', flag: '🇨🇳' },
   { id: 'onepiece', label: 'One Piece', flag: '🏴‍☠️' },
 ];
 
@@ -225,7 +225,7 @@ export function FilterBar({
           onClick={handlePresetAllLanguages}
           className="bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/80 px-2.5 py-1 rounded-lg font-semibold transition flex items-center gap-1 shadow-2xs"
         >
-          <span>🌐 Compare 4 Languages (EN, JP, KR, ZH)</span>
+          <span>🌐 Compare 4 Languages (EN, JP, KR, CH)</span>
         </button>
       </div>
 
