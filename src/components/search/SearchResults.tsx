@@ -38,6 +38,21 @@ export function SearchResults({
     if (card.image) return card.image;
     if (card.imageUrl) return card.imageUrl;
     if (card.tcgplayerId) return `https://product-images.tcgplayer.com/fit-in/438x438/${card.tcgplayerId}.jpg`;
+    if (card.id && card.number) {
+      const setSlug = card.id.split('-')[0]?.replace('.', '').toLowerCase();
+      return `https://images.pokemontcg.io/${setSlug}/${card.number}.png`;
+    }
+    return '';
+  };
+
+  const getFallbackImg = (card: SearchCardResult) => {
+    if (card.tcgplayerId) {
+      return `https://product-images.tcgplayer.com/fit-in/438x438/${card.tcgplayerId}.jpg`;
+    }
+    if (card.id && card.number) {
+      const setSlug = card.id.split('-')[0]?.replace('.', '').toLowerCase();
+      return `https://images.pokemontcg.io/${setSlug}/${card.number}.png`;
+    }
     return '';
   };
 
@@ -49,7 +64,7 @@ export function SearchResults({
       const optimizedCard: SearchCardResult = {
         ...card,
         name: `${card.name} [${(card.cheapestLanguage || 'en').toUpperCase()}]`,
-        price: card.cheapestPrice || card.price,
+        price: card.cheapestPrice ? card.cheapestPrice.toFixed(2) : card.price,
         language: card.cheapestLanguage
       };
       onAddToList(optimizedCard);
@@ -88,12 +103,14 @@ export function SearchResults({
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {results.map((card, idx) => {
           const img = getCardImg(card);
+          const fallbackImg = getFallbackImg(card);
           const setName = card.setName || card.set_name || 'Expansion';
           const owned = isOwned ? isOwned(card) : false;
           const inWishlist = isTracked ? isTracked(card) : false;
 
           const hasLanguages = card.languages && Object.keys(card.languages).length > 1;
           const hasSavings = Boolean(card.savingsVsEnglish && card.savingsVsEnglish > 0);
+          const cardLang = card.language || 'en';
 
           return (
             <div
@@ -109,14 +126,27 @@ export function SearchResults({
                   <div className="w-20 h-28 flex-shrink-0 bg-gray-50 dark:bg-gray-900 rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800 flex items-center justify-center p-1">
                     <SafeImage
                       src={img}
+                      fallbackSrc={fallbackImg}
                       alt={card.name}
-                      fallbackText="Card"
+                      fallbackText={card.name}
                       className="w-full h-full object-contain transition-transform group-hover:scale-105 duration-200"
                     />
                   </div>
 
                   <div className="flex-1 flex flex-col justify-start min-w-0">
-                    <h4 className="font-bold text-gray-900 dark:text-gray-100 text-sm leading-tight truncate" title={card.name}>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {card.isExclusive ? (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800/80">
+                          {LANG_FLAGS[cardLang] || cardLang.toUpperCase()} Exclusive
+                        </span>
+                      ) : cardLang !== 'en' ? (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                          {LANG_FLAGS[cardLang] || cardLang.toUpperCase()}
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <h4 className="font-bold text-gray-900 dark:text-gray-100 text-sm leading-tight truncate mt-0.5" title={card.name}>
                       {card.name}
                     </h4>
 
@@ -130,11 +160,22 @@ export function SearchResults({
                       </span>
                     )}
 
-                    <div className="mt-auto pt-1.5 flex items-baseline gap-1">
-                      <span className="text-[11px] text-gray-400">EN Mkt:</span>
+                    <div className="mt-auto pt-1.5 flex items-baseline gap-1.5 flex-wrap">
+                      <span className="text-[11px] text-gray-400">
+                        {cardLang === 'ja' ? 'JP Mkt:' : cardLang === 'zh' ? 'ZH Mkt:' : cardLang === 'ko' ? 'KO Mkt:' : 'EN Mkt:'}
+                      </span>
                       <span className="text-sm font-extrabold text-gray-900 dark:text-gray-100">
                         {card.price ? formatCurrency(card.price) : 'N/A'}
                       </span>
+                      {card.pricingSource && (
+                        <span className={`text-[9px] font-semibold px-1 rounded ${
+                          card.pricingSource === 'TCGPlayer'
+                            ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/60'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-500'
+                        }`}>
+                          {card.pricingSource}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

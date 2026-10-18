@@ -76,6 +76,8 @@ export interface SearchCardResult {
   cheapestPrice?: number | null;
   savingsVsEnglish?: number; // e.g. 62 (%)
   hasHighValueAltLanguages?: boolean; // true if price > 100 and KR/ZH comparisons were added
+  isExclusive?: boolean; // true if language exclusive (e.g. Japanese promo or exclusive artwork)
+  pricingSource?: string; // 'TCGPlayer' | 'Cardmarket' | 'JustTCG' | 'eBay'
 }
 
 export interface SearchFilterState {

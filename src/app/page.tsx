@@ -210,14 +210,11 @@ export default function Home() {
       const params = new URLSearchParams();
       if (query.trim()) params.set('q', query.trim());
 
-      // If only pokemon-japan is selected, query pokemon-japan
-      if (filters.languages?.includes('ja') && !filters.languages?.includes('en')) {
-        params.set('game', 'pokemon-japan');
-      } else if (filters.languages?.includes('onepiece')) {
-        params.set('game', 'onepiece');
-      } else {
-        params.set('game', tcg === 'pokemon-japan' ? 'pokemon' : tcg);
-      }
+      // Set limit to 150 to ensure all 100+ cards are returned
+      params.set('limit', '150');
+
+      // Always pass the selected game and languages
+      params.set('game', tcg === 'pokemon-japan' ? 'pokemon' : tcg);
 
       if (hasLanguages) {
         params.set('languages', filters.languages.join(','));
@@ -258,6 +255,33 @@ export default function Home() {
     }
   };
 
+  // Debounced auto-search when filters change so UI refreshes automatically without getting stuck
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const initialFilterSkip = useRef(true);
+
+  useEffect(() => {
+    if (initialFilterSkip.current) {
+      initialFilterSkip.current = false;
+      return;
+    }
+
+    const hasIntent =
+      Boolean(query.trim()) ||
+      (filters.categories && filters.categories.length > 0) ||
+      (filters.rarities && filters.rarities.length > 0) ||
+      (filters.languages && filters.languages.length > 0);
+
+    if (hasIntent) {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+      searchTimeoutRef.current = setTimeout(() => {
+        handleSearch();
+      }, 350);
+    }
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, [filters, tcg]);
+
   const handleClearFilters = () => {
     setFilters({
       languages: ['en', 'ja'],
@@ -268,6 +292,37 @@ export default function Home() {
       setName: '',
       onlyUnowned: false
     });
+  };
+
+  // Cross-language rarity equivalence matcher
+  const matchRarity = (cardRarity?: string, filterRarities: string[] = []): boolean => {
+    if (!filterRarities || filterRarities.length === 0) return true;
+    if (!cardRarity) return true;
+
+    const cr = cardRarity.toLowerCase().trim();
+    const frs = filterRarities.map((f) => f.toLowerCase().trim());
+    if (frs.some((f) => cr.includes(f) || f.includes(cr))) return true;
+
+    const EQUIV: Record<string, string[]> = {
+      'ultra rare': ['ur', 'sr', 'super rare'],
+      'super rare': ['sr', 'ultra rare'],
+      'special illustration rare': ['sar', 'special art rare', 'sir'],
+      'illustration rare': ['ar', 'art rare', 'ir'],
+      'art rare': ['ar', 'illustration rare', 'ir'],
+      'character rare': ['chr', 'character rare'],
+      'character super rare': ['csr', 'character super rare'],
+      'hyper rare': ['hr', 'ur', 'secret rare'],
+      'secret rare': ['sec', 'ur', 'hyper rare', 'rainbow rare'],
+      'double rare': ['rr', 'double rare', 'ex'],
+      'rare holo': ['r', 'holo', 'rare holo'],
+      'kagayaku': ['radiant', 'kagayaku', 'sparkling']
+    };
+
+    for (const f of frs) {
+      const list = EQUIV[f] || [];
+      if (list.some((eq) => cr.includes(eq) || eq.includes(cr))) return true;
+    }
+    return false;
   };
 
   // Computed displayed results with "Cards I Don't Have" (onlyUnowned) exclusion
@@ -310,18 +365,25 @@ export default function Home() {
       });
     }
 
-    // Filter by Rarity multi-select
+    // Filter by Rarity multi-select with cross-language equivalence
     if (filters.rarities?.length > 0) {
-      const lowerRarities = filters.rarities.map((r) => r.toLowerCase());
+      list = list.filter((card) => matchRarity(card.rarity, filters.rarities));
+    }
+
+    // Filter by Language multi-select (OR / UNION)
+    if (filters.languages?.length > 0) {
       list = list.filter((card) => {
-        if (!card.rarity) return true;
-        const cardRarity = card.rarity.toLowerCase();
-        return lowerRarities.some((r) => cardRarity.includes(r) || r.includes(cardRarity));
+        const lang = card.language || 'en';
+        if (filters.languages.includes(lang)) return true;
+        if (card.languages) {
+          return filters.languages.some((l) => Boolean(card.languages?.[l]));
+        }
+        return false;
       });
     }
 
     return list;
-  }, [searchResults, filters.onlyUnowned, filters.categories, filters.rarities, myCollection, myList]);
+  }, [searchResults, filters.onlyUnowned, filters.categories, filters.rarities, filters.languages, myCollection, myList]);
 
   // Add Card to Wishlist (Tracked)
   const handleAddWishlist = async (card: SearchCardResult) => {

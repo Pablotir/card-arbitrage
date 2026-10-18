@@ -278,9 +278,9 @@ export async function GET(request: Request) {
     const rarities = rarityParam ? rarityParam.split(',').map((r) => r.trim()).filter(Boolean) : [];
     const languagesParam = searchParams.get('languages') || '';
     const requestedLanguages = languagesParam
-      ? (languagesParam.split(',').map((l) => l.trim()).filter(Boolean) as CardLanguage[])
-      : [];
-    const limit = parseInt(searchParams.get('limit') || '36', 10);
+      ? (languagesParam.split(',').map((l) => l.trim().toLowerCase()).filter(Boolean) as CardLanguage[])
+      : (['en', 'ja'] as CardLanguage[]);
+    const limit = parseInt(searchParams.get('limit') || '150', 10);
     const API_KEY = process.env.JUSTTCG_API_KEY;
 
     const hasSearchIntent = Boolean(q.trim() || category || trainerType || rarities.length > 0);
@@ -288,84 +288,267 @@ export async function GET(request: Request) {
       return NextResponse.json({ data: [] });
     }
 
-    // 1. For Pokemon English, query TCGdex (Zero JustTCG credits used)
-    if (game === 'pokemon') {
-      try {
-        const tcgdexResults = await searchTcgdexCards({
+    const wantEn = requestedLanguages.includes('en') || (requestedLanguages.length === 0 && game === 'pokemon');
+    const wantJa = requestedLanguages.includes('ja') || game === 'pokemon-japan';
+    const wantKo = requestedLanguages.includes('ko');
+    const wantZh = requestedLanguages.includes('zh');
+    const wantOnePiece = requestedLanguages.includes('onepiece') || game === 'onepiece';
+
+    // 1. Parallel multi-language fetch (OR / UNION)
+    const promises: Promise<SearchCardResult[]>[] = [];
+
+    // A. English via TCGdex (Full set coverage, TCGPlayer pricing)
+    if (wantEn) {
+      promises.push(
+        searchTcgdexCards({
           query: q,
           category,
           trainerType,
           rarities,
-          limit
-        });
-        if (tcgdexResults.length > 0) {
-          const enriched = attachMultiLanguagePrices(tcgdexResults, requestedLanguages);
-          return NextResponse.json({ data: enriched, source: 'tcgdex' });
-        }
-      } catch (tcgErr) {
-        console.warn('TCGdex query fallback:', tcgErr);
-      }
+          limit,
+          lang: 'en'
+        }).then((cards) => attachMultiLanguagePrices(cards, requestedLanguages))
+          .catch((err) => {
+            console.error('TCGdex EN search error:', err);
+            return [];
+          })
+      );
+    } else {
+      promises.push(Promise.resolve([]));
     }
 
-    // 2. Query JustTCG (with 24h memory cache to prevent burning user credits)
-    if (API_KEY) {
-      const justTcgGame = game === 'onepiece' ? 'one-piece-card-game' : game;
-      let searchQuery = q.trim();
-      if (!searchQuery && (trainerType || category)) {
-        searchQuery = trainerType || category || 'Trainer';
-      } else if (!searchQuery && rarities.length > 0) {
-        searchQuery = rarities[0];
-      }
-
-      if (searchQuery) {
-        const cacheKey = `get_${justTcgGame}_${searchQuery.toLowerCase()}_${limit}`;
-        const cached = justTcgCache.get(cacheKey);
-
-        let data: any = null;
-        if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-          data = cached.data;
-        } else {
-          const response = await fetch(
-            `https://api.justtcg.com/v1/cards?game=${justTcgGame}&limit=${limit}&q=${encodeURIComponent(searchQuery)}`,
-            { headers: { 'x-api-key': API_KEY } }
-          );
-          if (response.ok) {
-            data = await response.json();
-            justTcgCache.set(cacheKey, { timestamp: Date.now(), data });
+    // B. Japanese via TCGdex JA + JustTCG JP market
+    if (wantJa) {
+      promises.push(
+        (async () => {
+          const jaCards: SearchCardResult[] = [];
+          try {
+            const tcgdexJa = await searchTcgdexCards({
+              query: q,
+              category,
+              trainerType,
+              rarities,
+              limit: Math.min(limit, 100),
+              lang: 'ja'
+            });
+            for (const c of tcgdexJa) {
+              jaCards.push({
+                ...c,
+                language: 'ja',
+                isExclusive: true,
+                pricingSource: c.pricingSource || 'Cardmarket'
+              });
+            }
+          } catch (jaErr) {
+            console.warn('TCGdex JA search error:', jaErr);
           }
-        }
 
-        if (data) {
-          let cards: any[] = (data.data || []).map((c: any) => ({
-            id: c.id,
-            tcgplayerId: c.tcgplayerId,
-            name: c.name,
-            setName: c.setName || c.set_name || 'Expansion',
-            set_name: c.setName || c.set_name || 'Expansion',
-            image: c.tcgplayerId ? `https://product-images.tcgplayer.com/fit-in/438x438/${c.tcgplayerId}.jpg` : '',
-            imageUrl: c.tcgplayerId ? `https://product-images.tcgplayer.com/fit-in/438x438/${c.tcgplayerId}.jpg` : '',
-            price: c.variants?.[0]?.price ? c.variants[0].price.toFixed(2) : null,
-            rarity: c.rarity,
-            game: game as any
-          }));
+          // Also check JustTCG for Japanese cards if API key available (strictly limit=20 per plan)
+          if (API_KEY && jaCards.length < limit) {
+            try {
+              let searchQuery = q.trim();
+              if (!searchQuery && (trainerType || category)) {
+                searchQuery = trainerType || category || 'Trainer';
+              } else if (!searchQuery && rarities.length > 0) {
+                searchQuery = rarities[0];
+              }
 
-          if (rarities.length > 0) {
-            const lowerRarities = rarities.map((r) => r.toLowerCase());
-            const filtered = cards.filter((c: any) =>
-              c.rarity && lowerRarities.some((r: string) => c.rarity.toLowerCase().includes(r))
-            );
-            if (filtered.length > 0) {
-              cards = filtered;
+              if (searchQuery) {
+                const cacheKey = `get_jp_${searchQuery.toLowerCase()}_20`;
+                const cached = justTcgCache.get(cacheKey);
+                let data: any = null;
+                if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+                  data = cached.data;
+                } else {
+                  const response = await fetch(
+                    `https://api.justtcg.com/v1/cards?game=pokemon-japan&limit=20&q=${encodeURIComponent(searchQuery)}`,
+                    { headers: { 'x-api-key': API_KEY } }
+                  );
+                  if (response.ok) {
+                    data = await response.json();
+                    justTcgCache.set(cacheKey, { timestamp: Date.now(), data });
+                  }
+                }
+
+                if (data && Array.isArray(data.data)) {
+                  for (const c of data.data) {
+                    const price = c.variants?.[0]?.price ? c.variants[0].price.toFixed(2) : null;
+                    const img = c.tcgplayerId
+                      ? `https://product-images.tcgplayer.com/fit-in/438x438/${c.tcgplayerId}.jpg`
+                      : '';
+                    jaCards.push({
+                      id: `jt-jp-${c.id}`,
+                      tcgplayerId: c.tcgplayerId,
+                      name: c.name,
+                      setName: c.setName || c.set_name || 'Japanese Expansion',
+                      set_name: c.setName || c.set_name || 'Japanese Expansion',
+                      image: img,
+                      imageUrl: img,
+                      price: price,
+                      rarity: c.rarity,
+                      game: 'pokemon-japan',
+                      language: 'ja',
+                      isExclusive: true,
+                      pricingSource: 'JustTCG'
+                    });
+                  }
+                }
+              }
+            } catch (jtErr) {
+              console.warn('JustTCG JP error:', jtErr);
             }
           }
 
-          const enriched = attachMultiLanguagePrices(cards, requestedLanguages);
-          return NextResponse.json({ data: enriched, source: 'justtcg' });
-        }
+          return jaCards;
+        })()
+      );
+    } else {
+      promises.push(Promise.resolve([]));
+    }
+
+    // C. Korean via TCGdex KO
+    if (wantKo) {
+      promises.push(
+        searchTcgdexCards({
+          query: q,
+          category,
+          trainerType,
+          rarities,
+          limit: Math.min(limit, 50),
+          lang: 'ko'
+        }).then((cards) =>
+          cards.map((c) => ({
+            ...c,
+            language: 'ko' as const,
+            isExclusive: true,
+            pricingSource: c.pricingSource || 'Asian Comps'
+          }))
+        ).catch(() => [])
+      );
+    } else {
+      promises.push(Promise.resolve([]));
+    }
+
+    // D. Chinese via TCGdex ZH-TW
+    if (wantZh) {
+      promises.push(
+        searchTcgdexCards({
+          query: q,
+          category,
+          trainerType,
+          rarities,
+          limit: Math.min(limit, 50),
+          lang: 'zh-tw'
+        }).then((cards) =>
+          cards.map((c) => ({
+            ...c,
+            language: 'zh' as const,
+            isExclusive: true,
+            pricingSource: c.pricingSource || 'Asian Comps'
+          }))
+        ).catch(() => [])
+      );
+    } else {
+      promises.push(Promise.resolve([]));
+    }
+
+    // E. One Piece via JustTCG (limit=20)
+    if (wantOnePiece && API_KEY) {
+      promises.push(
+        (async () => {
+          try {
+            const cleanQuery = encodeURIComponent(q.trim() || 'Leader');
+            const cacheKey = `op_${cleanQuery}_20`;
+            const cached = justTcgCache.get(cacheKey);
+            let data: any = null;
+            if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+              data = cached.data;
+            } else {
+              const res = await fetch(
+                `https://api.justtcg.com/v1/cards?game=one-piece-card-game&limit=20&q=${cleanQuery}`,
+                { headers: { 'x-api-key': API_KEY } }
+              );
+              if (res.ok) {
+                data = await res.json();
+                justTcgCache.set(cacheKey, { timestamp: Date.now(), data });
+              }
+            }
+
+            if (data && Array.isArray(data.data)) {
+              return data.data.map((c: any) => ({
+                id: `op-${c.id}`,
+                tcgplayerId: c.tcgplayerId,
+                name: c.name,
+                setName: c.setName || c.set_name || 'One Piece Card Game',
+                set_name: c.setName || c.set_name || 'One Piece Card Game',
+                image: c.tcgplayerId ? `https://product-images.tcgplayer.com/fit-in/438x438/${c.tcgplayerId}.jpg` : '',
+                imageUrl: c.tcgplayerId ? `https://product-images.tcgplayer.com/fit-in/438x438/${c.tcgplayerId}.jpg` : '',
+                price: c.variants?.[0]?.price ? c.variants[0].price.toFixed(2) : null,
+                rarity: c.rarity,
+                game: 'onepiece' as const,
+                language: 'onepiece' as const,
+                pricingSource: 'JustTCG'
+              }));
+            }
+          } catch {
+            return [];
+          }
+          return [];
+        })()
+      );
+    } else {
+      promises.push(Promise.resolve([]));
+    }
+
+    // Await all parallel language queries
+    const [enResults, jaResults, koResults, zhResults, opResults] = await Promise.all(promises);
+
+    // Merge in Union (OR) order: English primary, followed by language exclusives
+    const combinedMap = new Map<string, SearchCardResult>();
+
+    // 1. Add English cards
+    for (const card of enResults) {
+      combinedMap.set(`en-${card.id}`, card);
+    }
+
+    // 2. Add Japanese cards (include language exclusives)
+    for (const card of jaResults) {
+      const key = `ja-${card.id}`;
+      if (!combinedMap.has(key)) {
+        combinedMap.set(key, card);
       }
     }
 
-    return NextResponse.json({ data: [] });
+    // 3. Add Korean cards
+    for (const card of koResults) {
+      const key = `ko-${card.id}`;
+      if (!combinedMap.has(key)) {
+        combinedMap.set(key, card);
+      }
+    }
+
+    // 4. Add Chinese cards
+    for (const card of zhResults) {
+      const key = `zh-${card.id}`;
+      if (!combinedMap.has(key)) {
+        combinedMap.set(key, card);
+      }
+    }
+
+    // 5. Add One Piece cards
+    for (const card of opResults) {
+      const key = `op-${card.id}`;
+      if (!combinedMap.has(key)) {
+        combinedMap.set(key, card);
+      }
+    }
+
+    const allCards = Array.from(combinedMap.values());
+    return NextResponse.json({
+      data: allCards,
+      total: allCards.length,
+      languages: requestedLanguages
+    });
   } catch (error) { 
     return NextResponse.json({ error: 'Server Error', details: String(error) }, { status: 500 }); 
   }
