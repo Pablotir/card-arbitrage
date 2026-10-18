@@ -1,5 +1,5 @@
 import { SearchCardResult } from './types';
-import { isTrueJapaneseExclusive } from './exclusiveRegistry';
+import { isTrueJapaneseExclusive, isTrueChineseExclusive } from './exclusiveRegistry';
 
 // Comprehensive dictionary mapping Japanese card & trainer names to their official English releases
 export const JP_TRAINER_NAME_MAP: Record<string, string> = {
@@ -93,6 +93,11 @@ export const JP_TRAINER_NAME_MAP: Record<string, string> = {
   '溶接工': 'Welder',
   'ジャッジマン': 'Judge',
   'ハプウ': 'Hapu',
+  'ヤーコン': 'Clay',
+  'アセロラのいたずら': "Acerola's Mischief",
+  'アセロラ': 'Acerola',
+  'ヒカリ': 'Dawn',
+  'ビパ': 'Eri',
   'ルザミーネ': 'Lusamine',
   'プルメリ': 'Plumeria',
   'グズマ': 'Guzma',
@@ -419,40 +424,42 @@ export function translateJapaneseCardName(rawJpName: string): { englishName: str
  * Uses smart normalized matching and rarity-tier alignment so Super Rare maps to Ultra Rare / Full Art.
  */
 export function findEnglishCounterpart(
-  jpCard: SearchCardResult,
+  card: SearchCardResult,
   enCards: SearchCardResult[]
 ): SearchCardResult | null {
-  // If it is a true verified exclusive (e.g. Tag All Stars Will, Bellelba, Hapu, Clay, Sightseer), it NEVER has an English counterpart
-  if (isTrueJapaneseExclusive(jpCard)) {
+  // If it is a true verified exclusive (e.g. Tag All Stars Will, Bellelba, Hapu, Clay, Sightseer, or Chinese Burgerchu), it NEVER has an English counterpart
+  if (isTrueJapaneseExclusive(card) || isTrueChineseExclusive(card)) {
     return null;
   }
 
-  const { englishName } = translateJapaneseCardName(jpCard.name);
-  if (!englishName) return null;
+  const { englishName } = translateAsianCardName(card.name);
+  const nameToMatch = englishName || translateJapaneseCardName(card.name).englishName;
+  if (!nameToMatch) return null;
 
-  const jpIsHigh = isHighRarityCard(jpCard.rarity, jpCard.name);
+  const cardIsHigh = isHighRarityCard(card.rarity, card.name);
 
   // Find all matching English cards by name
   const matches: SearchCardResult[] = [];
   for (const enCard of enCards) {
-    if (matchesCardName(enCard.name, englishName)) {
+    if (matchesCardName(enCard.name, nameToMatch)) {
       matches.push(enCard);
     }
   }
 
   if (matches.length === 0) return null;
 
-  // If the Japanese card is a High Rarity card (Ultra Rare, Secret Rare, SAR, Super Rare),
-  // it must match an English card of high rarity tier! It must NEVER match a regular Uncommon or Common.
+  // STRICT TIER ALIGNMENT:
+  // High-rarity Japanese cards (SR, SAR, Ultra Rare) ONLY match English high-rarity cards.
+  // Low-rarity Japanese cards (Uncommon, Common) ONLY match English low-rarity cards.
+  // Low-rarity bulk ($0.03) must NEVER match a Special Illustration Rare or Ultra Rare!
   const highTierMatches = matches.filter((en) => isHighRarityCard(en.rarity, en.name));
-  if (jpIsHigh) {
+  const lowTierMatches = matches.filter((en) => !isHighRarityCard(en.rarity, en.name));
+
+  if (cardIsHigh) {
     if (highTierMatches.length > 0) return highTierMatches[0];
-    // If English ONLY has Uncommon/Common and no Ultra Rare, this high-rarity art is exclusive to Japan!
+    return null;
+  } else {
+    if (lowTierMatches.length > 0) return lowTierMatches[0];
     return null;
   }
-
-  if (matches.length === 1) return matches[0];
-
-  const tierMatch = matches.find((en) => isHighRarityCard(en.rarity, en.name) === jpIsHigh);
-  return tierMatch || matches[0];
 }

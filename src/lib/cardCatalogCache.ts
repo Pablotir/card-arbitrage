@@ -1,6 +1,7 @@
 import { SearchCardResult } from './types';
 
-const CACHE_PREFIX = 'cfinder_catalog_cache_v1_';
+const CACHE_PREFIX = 'cfinder_catalog_cache_v2_';
+const OLD_PREFIXES = ['cfinder_catalog_cache_v1_'];
 const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000; // 5 days in milliseconds (432,000,000 ms)
 
 export interface CatalogCacheEntry {
@@ -10,11 +11,29 @@ export interface CatalogCacheEntry {
 }
 
 /**
+ * Automatically purges obsolete legacy cache versions (e.g. v1)
+ */
+function purgeLegacyCaches(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const toRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && OLD_PREFIXES.some(p => k.startsWith(p))) {
+        toRemove.push(k);
+      }
+    }
+    for (const k of toRemove) localStorage.removeItem(k);
+  } catch {}
+}
+
+/**
  * Retrieves cached card catalog results from localStorage if within 5-day expiration window.
  */
 export function getCachedCatalog(key: string): SearchCardResult[] | null {
   if (typeof window === 'undefined') return null;
   try {
+    purgeLegacyCaches();
     const raw = localStorage.getItem(`${CACHE_PREFIX}${key}`);
     if (!raw) return null;
 

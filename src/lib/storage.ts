@@ -62,6 +62,19 @@ export function updateLocalCard(id: number, field: string, value: any): void {
   }
 }
 
+export function updateLocalCardFields(id: number, updates: Partial<CardItem>): void {
+  for (const status of ['tracked', 'collection'] as const) {
+    const cards = getLocalCards(status);
+    const index = cards.findIndex((c) => c.id === id);
+    if (index !== -1) {
+      cards[index] = { ...cards[index], ...updates };
+      const key = status === 'tracked' ? WISHLIST_KEY : COLLECTION_KEY;
+      localStorage.setItem(key, JSON.stringify(cards));
+      return;
+    }
+  }
+}
+
 export function deleteLocalCard(id: number): void {
   for (const status of ['tracked', 'collection'] as const) {
     const cards = getLocalCards(status);

@@ -19,11 +19,13 @@ import { CollectionTable } from '@/components/collection/CollectionTable';
 import { AuctionsTab } from '@/components/deals/AuctionsTab';
 import { SniperDashboard } from '@/components/sniper/SniperDashboard';
 import { PurchaseModal } from '@/components/cards/PurchaseModal';
+import { OwnCardModal, OwnCardSaveDetails } from '@/components/cards/OwnCardModal';
 import { SniperRuleModal } from '@/components/sniper/SniperRuleModal';
 import { ToastContainer, ToastMessage } from '@/components/ui/Toast';
 import { formatCurrency } from '@/utils/format';
 import { getCachedCatalog, setCachedCatalog } from '@/lib/cardCatalogCache';
-import { getCardEra, matchSpecialType } from '@/lib/exclusiveRegistry';
+import { getCardEra, matchSpecialType, isTrueJapaneseExclusive, isTrueChineseExclusive } from '@/lib/exclusiveRegistry';
+import { translateAsianCardName } from '@/lib/asianTranslations';
 
 export default function Home() {
   const { theme, toggleTheme, mounted: themeMounted } = useTheme();
@@ -71,6 +73,8 @@ export default function Home() {
     deleteCard,
     moveToCollection,
     toggleCardOwned,
+    addCardToCollection,
+    updateCollectionCard,
     handleBatchRefresh,
     handleEbayOnlyRefresh
   } = useCards(userId);
@@ -94,6 +98,12 @@ export default function Home() {
   const [purchaseModalCard, setPurchaseModalCard] = useState<CardItem | null>(null);
   const [snipeModalCard, setSnipeModalCard] = useState<any | null>(null);
   const [isSnipeModalOpen, setIsSnipeModalOpen] = useState(false);
+
+  // Own Card Modal State (Add or Edit Details)
+  const [isOwnModalOpen, setIsOwnModalOpen] = useState(false);
+  const [ownModalCard, setOwnModalCard] = useState<SearchCardResult | CardItem | null>(null);
+  const [ownModalMode, setOwnModalMode] = useState<'add' | 'edit'>('add');
+  const [existingItemForModal, setExistingItemForModal] = useState<CardItem | null>(null);
 
   // Toasts
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -355,6 +365,74 @@ export default function Home() {
     }
   };
 
+  // Open Own Modal in Add or Edit Mode
+  const handleOpenOwnModal = (card: SearchCardResult) => {
+    const tcgId = card.tcgplayerId || card.id;
+    const cardName = card.name.toLowerCase().trim();
+    const existing = myCollection.find((c) => {
+      if (c.card_id && String(c.card_id) === String(tcgId)) return true;
+      return c.name.toLowerCase().trim() === cardName;
+    });
+
+    if (existing) {
+      setOwnModalMode('edit');
+      setExistingItemForModal(existing);
+      setOwnModalCard(card);
+      setIsOwnModalOpen(true);
+    } else {
+      setOwnModalMode('add');
+      setExistingItemForModal(null);
+      setOwnModalCard(card);
+      setIsOwnModalOpen(true);
+    }
+  };
+
+  // Edit Card from My Collection table
+  const handleEditCollectionCard = (card: CardItem) => {
+    setOwnModalMode('edit');
+    setExistingItemForModal(card);
+    setOwnModalCard(card);
+    setIsOwnModalOpen(true);
+  };
+
+  // Save changes from OwnCardModal
+  const handleSaveOwnedCard = async (
+    card: SearchCardResult | CardItem,
+    details: OwnCardSaveDetails
+  ) => {
+    if (ownModalMode === 'edit' && existingItemForModal) {
+      await updateCollectionCard(existingItemForModal.id, details);
+      showToast(`Updated "${card.name}" details in your Collection!`, 'success');
+    } else {
+      await addCardToCollection(card, details);
+      showToast(`Added "${card.name}" to your Collection!`, 'success');
+    }
+  };
+
+  // Remove card via modal in edit mode
+  const handleRemoveFromModal = async (cardId: number) => {
+    await deleteCard(cardId);
+    showToast('Removed card from your Collection.', 'info');
+  };
+
+  // Flush all stored local caches and re-query
+  const handleFlushCache = () => {
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('cfinder_catalog_cache') || k.startsWith('v1_catalog_cache'))) {
+          keysToRemove.push(k);
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+      showToast('Flushed local card database! Re-querying live market data...', 'info');
+      handleSearch(undefined, true);
+    } catch {
+      showToast('Failed to flush local database cache.', 'error');
+    }
+  };
+
   // Auto-fetch base catalog when primary query, game, category, rarity, era, or special type changes.
   useEffect(() => {
     if (initialFilterSkip.current) {
@@ -529,7 +607,24 @@ export default function Home() {
       });
     }
 
-    return list;
+    return list.map((card) => {
+      let displayName = card.name;
+      if (/[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf\uac00-\ud7af]/.test(card.name)) {
+        const { englishName, isTranslated } = translateAsianCardName(card.name);
+        if (isTranslated) {
+          const isJpEx = isTrueJapaneseExclusive(card);
+          const isZhEx = isTrueChineseExclusive(card);
+          if (isJpEx && !englishName.includes('[JP Exclusive]')) {
+            displayName = `${englishName} [JP Exclusive]`;
+          } else if (isZhEx && !englishName.includes('[CH Exclusive]')) {
+            displayName = `${englishName} [CH Exclusive]`;
+          } else {
+            displayName = englishName;
+          }
+        }
+      }
+      return displayName !== card.name ? { ...card, name: displayName } : card;
+    });
   }, [searchResults, filters.onlyUnowned, filters.categories, filters.rarities, filters.languages, filters.eras, filters.specialTypes, myCollection, myList]);
 
   // Add Card to Wishlist (Tracked)
@@ -858,6 +953,8 @@ export default function Home() {
                 onAddBatchSelected={handleAddBatchSelected}
                 onOpenSniper={handleOpenSniperModal}
                 onToggleOwned={handleToggleOwned}
+                onOpenOwnModal={handleOpenOwnModal}
+                onFlushCache={handleFlushCache}
                 isOwned={(card) =>
                   myCollection.some((c) => {
                     if (card.id && c.card_id && String(c.card_id) === String(card.id)) return true;
@@ -935,6 +1032,7 @@ export default function Home() {
               tcg={tcg}
               setTcg={setTcg}
               onDeleteClick={deleteCard}
+              onEditClick={handleEditCollectionCard}
               onBatchRefresh={onTriggerBatchRefresh}
               onEbayOnlyRefresh={onTriggerEbayRefresh}
               isLoading={isCardsLoading}
@@ -975,6 +1073,21 @@ export default function Home() {
         userId={userId}
         onRuleCreated={addSniperRule}
         onShowToast={showToast}
+      />
+
+      {/* MODAL 3: I OWN / EDIT COLLECTION DETAILS */}
+      <OwnCardModal
+        isOpen={isOwnModalOpen}
+        onClose={() => {
+          setIsOwnModalOpen(false);
+          setOwnModalCard(null);
+          setExistingItemForModal(null);
+        }}
+        card={ownModalCard}
+        mode={ownModalMode}
+        existingItem={existingItemForModal}
+        onSave={handleSaveOwnedCard}
+        onRemove={handleRemoveFromModal}
       />
     </div>
   );

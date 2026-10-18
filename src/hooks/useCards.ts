@@ -2,11 +2,12 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { CardItem, SearchCardResult, TcgGame, StorageMode } from '@/lib/types';
+import { CardItem, SearchCardResult, TcgGame, StorageMode, CardLanguage } from '@/lib/types';
 import {
   getLocalCards,
   saveLocalCard,
   updateLocalCard,
+  updateLocalCardFields,
   deleteLocalCard,
   moveLocalCardToCollection,
   getStorageMode,
@@ -289,6 +290,93 @@ export function useCards(userId: string) {
     return { status: 'error' as const };
   };
 
+  const addCardToCollection = async (
+    card: SearchCardResult | CardItem,
+    details: { purchasePrice: number; language: CardLanguage; grade: string }
+  ) => {
+    const tcgId = (card as any).tcgplayerId || (card as any).card_id || card.id;
+    const cardName = card.name.toLowerCase().trim();
+
+    const isJa = details.language === 'ja' || (card.name ? /\[(JA|JP)\]/i.test(card.name) : false);
+    const isOp = details.language === 'onepiece';
+    const resolvedGame: TcgGame = isJa ? 'pokemon-japan' : isOp ? 'onepiece' : 'pokemon';
+
+    const cleanCard: SearchCardResult = {
+      ...(card as any),
+      game: resolvedGame,
+      language: details.language
+    };
+
+    const tcgLink = formatTcgplayerLink({
+      ...cleanCard,
+      grade: details.grade
+    });
+
+    const newCard = {
+      user_id: userId,
+      card_id: String(tcgId),
+      name: cleanCard.name,
+      set_name: cleanCard.setName || (cleanCard as any).set_name || 'Expansion',
+      image: cleanCard.image || cleanCard.imageUrl || '',
+      grade: details.grade,
+      is_first_edition: false,
+      live_price: cleanCard.price ? String(cleanCard.price) : 'N/A',
+      purchase_price: details.purchasePrice,
+      status: 'collection' as const,
+      best_link: tcgLink,
+      best_source: cleanCard.price ? 'TCGPlayer' : '',
+      game: resolvedGame,
+      language: details.language
+    };
+
+    if (storageMode === 'local') {
+      const created = saveLocalCard(newCard, 'collection');
+      setMyCollection((prev) => [created, ...prev]);
+      setMyList((prev) =>
+        prev.filter((w) => String(w.card_id) !== String(tcgId) && w.name.toLowerCase().trim() !== cardName)
+      );
+      return { status: 'added' as const, card: created };
+    }
+
+    const { data, error } = await supabase.from('cards').insert(newCard).select().single();
+    if (!error && data) {
+      setMyCollection((prev) => [data, ...prev]);
+      return { status: 'added' as const, card: data };
+    }
+    return { status: 'error' as const };
+  };
+
+  const updateCollectionCard = async (
+    cardId: number,
+    details: { purchasePrice: number; language: CardLanguage; grade: string }
+  ) => {
+    const updates: Partial<CardItem> = {
+      purchase_price: details.purchasePrice,
+      language: details.language,
+      grade: details.grade
+    };
+
+    if (storageMode === 'local') {
+      updateLocalCardFields(cardId, updates);
+      setMyCollection((prev) =>
+        prev.map((c) => (c.id === cardId ? { ...c, ...updates } : c))
+      );
+      setMyList((prev) =>
+        prev.map((c) => (c.id === cardId ? { ...c, ...updates } : c))
+      );
+      return true;
+    }
+
+    const { error } = await supabase.from('cards').update(updates).eq('id', cardId);
+    if (!error) {
+      setMyCollection((prev) =>
+        prev.map((c) => (c.id === cardId ? { ...c, ...updates } : c))
+      );
+      return true;
+    }
+    return false;
+  };
+
   const handleBatchRefresh = async () => {
     const allCards = [...myList, ...myCollection];
     if (allCards.length === 0) return;
@@ -481,6 +569,8 @@ export function useCards(userId: string) {
     deleteCard,
     moveToCollection,
     toggleCardOwned,
+    addCardToCollection,
+    updateCollectionCard,
     handleBatchRefresh,
     handleEbayOnlyRefresh
   };

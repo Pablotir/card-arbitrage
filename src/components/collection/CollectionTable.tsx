@@ -5,13 +5,14 @@ import { CardItem, SortField, SortOrder, TcgGame } from '@/lib/types';
 import { SortHeader } from '../ui/SortHeader';
 import { TcgToggle } from '../ui/TcgToggle';
 import { formatCurrency, formatProfit } from '@/utils/format';
-import { Search, RefreshCw, Sparkles, Trash2, Inbox } from 'lucide-react';
+import { Search, RefreshCw, Sparkles, Trash2, Inbox, Pencil } from 'lucide-react';
 
 interface CollectionTableProps {
   collection: CardItem[];
   tcg: TcgGame;
   setTcg: (game: TcgGame) => void;
   onDeleteClick: (id: number) => void;
+  onEditClick?: (card: CardItem) => void;
   onBatchRefresh: () => void;
   onEbayOnlyRefresh: () => void;
   isLoading: boolean;
@@ -22,6 +23,7 @@ export function CollectionTable({
   tcg,
   setTcg,
   onDeleteClick,
+  onEditClick,
   onBatchRefresh,
   onEbayOnlyRefresh,
   isLoading
@@ -167,7 +169,7 @@ export function CollectionTable({
                     onSort={handleSort}
                   />
                 </th>
-                <th className="p-4 text-right">Del</th>
+                <th className="p-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -201,9 +203,25 @@ export function CollectionTable({
                       <p className="font-bold text-gray-900 dark:text-gray-100 text-sm">
                         {card.name}
                       </p>
-                      <span className="inline-block mt-0.5 text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-100 dark:border-blue-900/60">
-                        {card.set_name || 'Set'}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                        <span className="inline-block text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-100 dark:border-blue-900/60">
+                          {card.set_name || 'Set'}
+                        </span>
+                        {card.language && (
+                          <span className="inline-block text-[10px] font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded-md border border-gray-200 dark:border-gray-700">
+                            {card.language === 'zh' ? '🇨🇳 CH' : card.language === 'ja' ? '🇯🇵 JP' : card.language === 'ko' ? '🇰🇷 KR' : '🇺🇸 EN'}
+                          </span>
+                        )}
+                        {card.grade && (
+                          <span className={`inline-block text-[10px] font-black px-1.5 py-0.5 rounded-md border ${
+                            card.grade.startsWith('PSA') || card.grade.startsWith('BGS') || card.grade.startsWith('CGC') || card.grade.startsWith('ARS')
+                              ? 'bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-800'
+                              : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                          }`}>
+                            {card.grade}
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     <td className="p-4 font-semibold text-gray-700 dark:text-gray-300 text-sm">
@@ -227,14 +245,26 @@ export function CollectionTable({
                     </td>
 
                     <td className="p-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => onDeleteClick(card.id)}
-                        className="text-gray-400 hover:text-rose-500 dark:hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition"
-                        title="Remove from collection"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        {onEditClick && (
+                          <button
+                            type="button"
+                            onClick={() => onEditClick(card)}
+                            className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/30 transition cursor-pointer"
+                            title="Edit card details (price, language, grade)"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => onDeleteClick(card.id)}
+                          className="text-gray-400 hover:text-rose-500 dark:hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition cursor-pointer"
+                          title="Remove from collection"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

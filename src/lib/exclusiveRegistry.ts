@@ -126,12 +126,15 @@ export function isTrueJapaneseExclusive(card: {
   id?: string;
   name?: string;
   localId?: string;
+  number?: string;
   set?: { id?: string };
+  setName?: string;
 }): boolean {
   if (!card) return false;
   const idNorm = (card.id || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
-  const localId = (card.localId || '').trim();
+  const localId = (card.localId || card.number || idNorm.split('-')[1] || '').trim();
   const nameLower = (card.name || '').toLowerCase();
+  const setLower = (card.setName || card.set?.id || '').toLowerCase();
 
   // 1. Direct ID match
   if (TRUE_JP_EXCLUSIVE_IDS.has(idNorm)) return true;
@@ -155,13 +158,15 @@ export function isTrueJapaneseExclusive(card: {
   }
 
   // 3. Tag All Stars exclusive Full Arts (Will 189, Misty & Lorelei 191, Sightseer 192, Alt Arts 193/196/201, Bellelba 194, Hapu 195, Clay 199)
-  const setIdNorm = (card.set?.id || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
-  if (idNorm.includes('sm12a') || setIdNorm.includes('sm12a')) {
+  const setIdNorm = (card.set?.id || card.setName || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
+  if (idNorm.includes('sm12a') || setIdNorm.includes('sm12a') || setLower.includes('tag team gx') || setLower.includes('タッグオール')) {
     if (['189', '191', '192', '193', '194', '195', '196', '199', '201'].includes(localId)) return true;
     if (nameLower.includes('will') || nameLower.includes('イツキ')) return true;
     if (nameLower.includes('bellelba') || nameLower.includes('ジュジュベ')) return true;
     if (nameLower.includes('hapu') || nameLower.includes('ハプウ')) return true;
     if (nameLower.includes('clay') || nameLower.includes('ヤーコン')) return true;
+    if (nameLower.includes('sightseer') || nameLower.includes('かんこうきゃく')) return true;
+    if (nameLower.includes('misty & lorelei') || nameLower.includes('カスミ&カンナ')) return true;
   }
 
   // 4. Extra Battle Day promo numbers (395-399, 401, 064, 100)

@@ -327,21 +327,22 @@ export async function searchTcgdexCards(
           if (imageBase) {
             imageUrl = `${imageBase}/high.webp`;
           } else if (lang === 'zh-tw' || lang === 'zh-cn' || lang === 'ko' || lang === 'ja') {
-            // Asian sets (JP, KR, ZH) share identical set IDs and local card numbers
+            const isSwsh = rawSetId.toUpperCase().startsWith('SWSH') || rawSetId.toUpperCase().startsWith('S') || rawSetId.toUpperCase().startsWith('CS');
             const series = rawSetId.toUpperCase().startsWith('SV')
               ? 'SV'
               : rawSetId.toUpperCase().startsWith('SM')
               ? 'SM'
-              : rawSetId.toUpperCase().startsWith('SWSH') || rawSetId.toUpperCase().startsWith('S')
-              ? 'SWSH'
+              : isSwsh
+              ? 'S'
               : rawSetId.toUpperCase().startsWith('XY')
               ? 'XY'
               : rawSetId.toUpperCase().startsWith('BW')
               ? 'BW'
               : 'SV';
 
+            const paddedLocalId = /^\d+$/.test(cleanLocalId) ? cleanLocalId.padStart(3, '0') : cleanLocalId;
             if (rawSetId && cleanLocalId) {
-              imageUrl = `https://assets.tcgdex.net/ja/${series}/${rawSetId}/${cleanLocalId}/high.webp`;
+              imageUrl = `https://assets.tcgdex.net/ja/${series}/${rawSetId}/${paddedLocalId}/high.webp`;
             }
           } else if (lang === 'en' && d.set?.id && d.localId) {
             const setSlug = d.set.id.replace('.', '').toLowerCase();

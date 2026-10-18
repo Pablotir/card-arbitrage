@@ -501,6 +501,68 @@ export const ASIAN_NAME_MAP: Record<string, string> = {
   '저지맨': 'Judge',
   '裁判': 'Judge',
 
+  // VSTAR Universe & Sword & Shield Era Trainers
+  '黑连的留心': "Cheren's Care",
+  '黑連的留心': "Cheren's Care",
+  '黑连的用心': "Cheren's Care",
+  '黑連的關心': "Cheren's Care",
+  '黑连': 'Cheren',
+  '黑連': 'Cheren',
+
+  '老大的指令 (赤日)': "Boss's Orders",
+  '老大的指令（赤日）': "Boss's Orders",
+
+  '博士的研究 (山梨博士)': "Professor's Research (Professor Rowan)",
+  '博士的研究（山梨博士）': "Professor's Research (Professor Rowan)",
+  '博士的研究(木兰博士)': "Professor's Research (Professor Magnolia)",
+  '博士的研究（木兰博士）': "Professor's Research (Professor Magnolia)",
+  '博士的研究(木蘭博士)': "Professor's Research (Professor Magnolia)",
+  '博士的研究（木蘭博士）': "Professor's Research (Professor Magnolia)",
+  '博士的研究': "Professor's Research",
+  '博士の研究（ナナカマド博士）': "Professor's Research (Professor Rowan)",
+  '博士の研究 (ナナカマド博士)': "Professor's Research (Professor Rowan)",
+  'ナナカマド博士': 'Professor Rowan',
+  '山梨博士': 'Professor Rowan',
+
+  '杜娟': 'Roxanne',
+  '菜种的活力': "Gardenia's Vigor",
+  '菜種的活力': "Gardenia's Vigor",
+  '菜种': 'Gardenia',
+  '菜種': 'Gardenia',
+
+  '美蓉': 'Melony',
+  '望罗': 'Volo',
+  '望羅': 'Volo',
+  '小菊儿的璀璨': "Elesa's Sparkle",
+  '小菊兒的璀璨': "Elesa's Sparkle",
+  '小菊儿': 'Elesa',
+  '小菊兒': 'Elesa',
+
+  '神奥的伙伴': 'Friends in Sinnoh',
+  '神奧的夥伴': 'Friends in Sinnoh',
+  '洗翠的伙伴': 'Friends in Hisui',
+  '洗翠的夥伴': 'Friends in Hisui',
+  '阿罗拉的伙伴': 'Alolan Friends',
+  '阿羅拉的夥伴': 'Alolan Friends',
+  '伽勒尔的伙伴': 'Friends in Galar',
+  '伽勒爾的夥伴': 'Friends in Galar',
+
+  '奥利薇': 'Oleana',
+  '奧利薇': 'Oleana',
+
+  '木兰博士': 'Professor Magnolia',
+  '木蘭博士': 'Professor Magnolia',
+
+  '彼特': 'Bede',
+  '宝可梦中心的姐姐': 'Pokémon Center Lady',
+  '寶可夢中心的姐姐': 'Pokémon Center Lady',
+
+  '赫普': 'Hop',
+  '亚洛': 'Milo',
+  '亞洛': 'Milo',
+
+  '青吉': 'Salvatore',
+
   // Youngster
   'たんぱんこぞう': 'Youngster',
   '반바지 꼬마': 'Youngster',

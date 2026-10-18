@@ -24,29 +24,86 @@ export const KNOWN_CARD_PRICING: Record<string, KnownPriceEntry> = {
   // Welder (Full Art - Unbroken Bonds 214/214)
   'sm10-214': { tcgplayerId: '189370', price: 48.00, source: 'TCGPlayer' },
   // Marnie (Full Art - Sword & Shield 200/202)
-  'swsh1-200': { tcgplayerId: '208428', price: 42.00, source: 'TCGPlayer' }
+  'swsh1-200': { tcgplayerId: '208428', price: 42.00, source: 'TCGPlayer' },
+
+  // Hidden Fates Shiny Vault Full Art Supporters
+  'sma-SV82': { tcgplayerId: '198083', price: 92.50, source: 'TCGPlayer' },
+  'sma-SV84': { tcgplayerId: '198085', price: 16.50, source: 'TCGPlayer' },
+  'sma-SV86': { tcgplayerId: '198087', price: 18.50, source: 'TCGPlayer' },
+  'sma-SV83': { tcgplayerId: '198084', price: 11.20, source: 'TCGPlayer' },
+  'sma-SV85': { tcgplayerId: '198086', price: 7.50, source: 'TCGPlayer' },
+  'sma-SV81': { tcgplayerId: '198082', price: 8.50, source: 'TCGPlayer' },
+
+  // Japanese Dream League Rosa SR (067/049) - Real Near Mint Comp
+  'sm11b-067': { tcgplayerId: '201334', price: 280.00, source: 'Cardmarket / Mercari' },
+  'sm11b-67': { tcgplayerId: '201334', price: 280.00, source: 'Cardmarket / Mercari' },
+
+  // Cynthia Full Art (Ultra Prism 148/156)
+  'sm5-148': { tcgplayerId: '160351', price: 95.00, source: 'TCGPlayer' },
+  'sm5-119': { tcgplayerId: '160322', price: 1.50, source: 'TCGPlayer' }
 };
 
-export function getKnownCardPrice(cardId?: string, cardName?: string, rarity?: string): KnownPriceEntry | null {
-  if (cardId && KNOWN_CARD_PRICING[cardId]) {
-    return KNOWN_CARD_PRICING[cardId];
+export function getKnownCardPrice(
+  cardId?: string,
+  cardName?: string,
+  rarity?: string,
+  setName?: string
+): KnownPriceEntry | null {
+  if (cardId) {
+    const idClean = cardId.replace(/[^a-zA-Z0-9-]/g, '').toLowerCase();
+    for (const [k, v] of Object.entries(KNOWN_CARD_PRICING)) {
+      if (idClean === k.toLowerCase()) return v;
+    }
+    // Also check if cardId contains sm11b-067 or sm11b-67 for JP Rosa
+    if (idClean.includes('sm11b') && (idClean.includes('067') || idClean.includes('67'))) {
+      return KNOWN_CARD_PRICING['sm11b-067'];
+    }
   }
+
+  const sLower = (setName || '').toLowerCase();
+
   if (cardName) {
     const lower = cardName.toLowerCase().replace(/[\u2018\u2019]/g, "'");
     const rLower = (rarity || '').toLowerCase();
-    const isUltra = rLower.includes('ultra') || rLower.includes('special') || rLower.includes('secret') || rLower.includes('full art');
+    const isUltra = rLower.includes('ultra') || rLower.includes('special') || rLower.includes('secret') || rLower.includes('full art') || rLower.includes('shiny rare');
 
     if (lower.includes("misty's favor") || lower.includes("mistys favor")) {
       return isUltra || lower.includes('235') ? KNOWN_CARD_PRICING['sm11-235'] : KNOWN_CARD_PRICING['sm11-202'];
     }
-    if (lower.includes('lillie') && (lower.includes('ultra prism') || lower.includes('151/156'))) {
+    if (lower.includes('lillie') && (lower.includes('ultra prism') || lower.includes('151/156') || sLower.includes('ultra prism'))) {
       return KNOWN_CARD_PRICING['sm5-151'];
     }
     if (lower.includes('rosa')) {
+      if (cardId?.toLowerCase().includes('sm11b') || lower.includes('dream league') || sLower.includes('dream league')) {
+        return KNOWN_CARD_PRICING['sm11b-067'];
+      }
       return KNOWN_CARD_PRICING['sm12-236'];
     }
     if (lower.includes("erika's hospitality")) {
       return KNOWN_CARD_PRICING['sm9-174'];
+    }
+    if (lower.includes('cynthia')) {
+      if (lower.includes('hidden fates') || sLower.includes('hidden fates') || sLower.includes('shiny vault') || cardId?.toLowerCase().includes('sv82') || lower.includes('sv82')) {
+        return KNOWN_CARD_PRICING['sma-SV82'];
+      }
+      if (isUltra || lower.includes('148') || sLower.includes('ultra prism')) {
+        return KNOWN_CARD_PRICING['sm5-148'];
+      }
+    }
+    if (lower.includes('guzma') && (lower.includes('hidden fates') || sLower.includes('hidden fates') || cardId?.toLowerCase().includes('sv84'))) {
+      return KNOWN_CARD_PRICING['sma-SV84'];
+    }
+    if (lower.includes('lady') && (lower.includes('hidden fates') || sLower.includes('hidden fates') || cardId?.toLowerCase().includes('sv86'))) {
+      return KNOWN_CARD_PRICING['sma-SV86'];
+    }
+    if (lower.includes('fisherman') && (lower.includes('hidden fates') || sLower.includes('hidden fates') || cardId?.toLowerCase().includes('sv83'))) {
+      return KNOWN_CARD_PRICING['sma-SV83'];
+    }
+    if (lower.includes('hiker') && (lower.includes('hidden fates') || sLower.includes('hidden fates') || cardId?.toLowerCase().includes('sv85'))) {
+      return KNOWN_CARD_PRICING['sma-SV85'];
+    }
+    if (lower.includes('aether foundation') && (lower.includes('hidden fates') || sLower.includes('hidden fates') || cardId?.toLowerCase().includes('sv81'))) {
+      return KNOWN_CARD_PRICING['sma-SV81'];
     }
   }
   return null;

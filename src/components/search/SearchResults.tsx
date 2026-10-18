@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { SearchCardResult, CardLanguage } from '@/lib/types';
-import { Target, CheckCircle2, Sparkles, Bookmark, Check, SlidersHorizontal, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
+import { Target, CheckCircle2, Sparkles, Bookmark, Check, SlidersHorizontal, RotateCcw, ChevronDown, ChevronUp, LayoutGrid, Maximize2, Minimize2, Trash2 } from 'lucide-react';
 import { formatCurrency } from '@/utils/format';
 import { SafeImage } from '../ui/SafeImage';
 
@@ -14,8 +14,10 @@ interface SearchResultsProps {
   onAddBatchSelected?: (items: { card: SearchCardResult; language: CardLanguage }[]) => void;
   onOpenSniper: (card: SearchCardResult) => void;
   onToggleOwned?: (card: SearchCardResult) => void;
+  onOpenOwnModal?: (card: SearchCardResult) => void;
   isOwned?: (card: SearchCardResult) => boolean;
   isTracked?: (card: SearchCardResult) => boolean;
+  onFlushCache?: () => void;
 }
 
 const LANG_FLAGS: Record<CardLanguage, string> = {
@@ -34,13 +36,19 @@ export function SearchResults({
   onAddBatchSelected,
   onOpenSniper,
   onToggleOwned,
+  onOpenOwnModal,
   isOwned,
-  isTracked
+  isTracked,
+  onFlushCache
 }: SearchResultsProps) {
   // User manual language selection per card: cardId -> CardLanguage
   const [selectedCardLanguages, setSelectedCardLanguages] = useState<Record<string, CardLanguage>>({});
   // Set of card IDs that were explicitly selected (either by manual chip click or price slider)
   const [explicitlySelectedIds, setExplicitlySelectedIds] = useState<Set<string>>(new Set());
+
+  // Dynamic Grid & Sizing Controls
+  const [gridCols, setGridCols] = useState<'auto' | '3' | '4' | '5' | '6'>('auto');
+  const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable');
 
   // Smart Price Tier Slider State
   const [isSliderPanelOpen, setIsSliderPanelOpen] = useState<boolean>(true);
@@ -155,18 +163,20 @@ export function SearchResults({
       if (parts.length >= 2) {
         const rawSet = parts[0];
         const num = parts[1];
+        const isSwsh = rawSet.toUpperCase().startsWith('SWSH') || rawSet.toUpperCase().startsWith('S') || rawSet.toUpperCase().startsWith('CS');
         const series = rawSet.toUpperCase().startsWith('SV')
           ? 'SV'
           : rawSet.toUpperCase().startsWith('SM')
           ? 'SM'
-          : rawSet.toUpperCase().startsWith('SWSH') || rawSet.toUpperCase().startsWith('S')
-          ? 'SWSH'
+          : isSwsh
+          ? 'S'
           : rawSet.toUpperCase().startsWith('XY')
           ? 'XY'
           : rawSet.toUpperCase().startsWith('BW')
           ? 'BW'
           : 'SV';
-        return `https://assets.tcgdex.net/ja/${series}/${rawSet}/${num}/high.webp`;
+        const paddedNum = /^\d+$/.test(num) ? num.padStart(3, '0') : num;
+        return `https://assets.tcgdex.net/ja/${series}/${rawSet}/${paddedNum}/high.webp`;
       }
     }
     if (card.tcgplayerId && card.language === 'en') {
@@ -185,18 +195,20 @@ export function SearchResults({
       if (parts.length >= 2) {
         const rawSet = parts[0];
         const num = parts[1];
+        const isSwsh = rawSet.toUpperCase().startsWith('SWSH') || rawSet.toUpperCase().startsWith('S') || rawSet.toUpperCase().startsWith('CS');
         const series = rawSet.toUpperCase().startsWith('SV')
           ? 'SV'
           : rawSet.toUpperCase().startsWith('SM')
           ? 'SM'
-          : rawSet.toUpperCase().startsWith('SWSH') || rawSet.toUpperCase().startsWith('S')
-          ? 'SWSH'
+          : isSwsh
+          ? 'S'
           : rawSet.toUpperCase().startsWith('XY')
           ? 'XY'
           : rawSet.toUpperCase().startsWith('BW')
           ? 'BW'
           : 'SV';
-        return `https://assets.tcgdex.net/ja/${series}/${rawSet}/${num}/high.webp`;
+        const paddedNum = /^\d+$/.test(num) ? num.padStart(3, '0') : num;
+        return `https://assets.tcgdex.net/ja/${series}/${rawSet}/${paddedNum}/high.webp`;
       }
     }
     if (card.tcgplayerId && card.language === 'en') {
@@ -281,6 +293,72 @@ export function SearchResults({
             <span>Quick Add All ({selectedCount > 0 ? 'Selected + Cheapest' : 'All Cheapest'})</span>
           </button>
         </div>
+      </div>
+
+      {/* View & Layout Controls Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 bg-gray-50/80 dark:bg-gray-800/60 rounded-2xl border border-gray-100 dark:border-gray-700/60 text-xs">
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <LayoutGrid className="w-3.5 h-3.5 text-gray-400" />
+            <span className="font-bold text-gray-600 dark:text-gray-400">Columns:</span>
+            <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-0.5">
+              {(['auto', '3', '4', '5', '6'] as const).map((col) => (
+                <button
+                  key={col}
+                  type="button"
+                  onClick={() => setGridCols(col)}
+                  className={`px-2 py-0.5 rounded-md font-bold text-[11px] transition cursor-pointer ${
+                    gridCols === col
+                      ? 'bg-blue-600 text-white shadow-2xs'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                >
+                  {col === 'auto' ? 'Auto-Fit' : col}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <span className="font-bold text-gray-600 dark:text-gray-400">Card Density:</span>
+            <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-0.5">
+              <button
+                type="button"
+                onClick={() => setDensity('comfortable')}
+                className={`px-2 py-0.5 rounded-md font-bold text-[11px] transition cursor-pointer ${
+                  density === 'comfortable'
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                }`}
+              >
+                Comfortable
+              </button>
+              <button
+                type="button"
+                onClick={() => setDensity('compact')}
+                className={`px-2 py-0.5 rounded-md font-bold text-[11px] transition cursor-pointer ${
+                  density === 'compact'
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                }`}
+              >
+                Compact
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {onFlushCache && (
+          <button
+            type="button"
+            onClick={onFlushCache}
+            className="inline-flex items-center gap-1.5 text-[11px] font-bold py-1 px-2.5 rounded-lg text-gray-600 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:border-red-300 dark:hover:border-red-900 transition cursor-pointer shadow-2xs"
+            title="Purge saved local database caches and re-query live cards"
+          >
+            <RotateCcw className="w-3 h-3 text-red-500" />
+            <span>Flush Local Cache &amp; Reload</span>
+          </button>
+        )}
       </div>
 
       {/* 2. Interactive Price Level Strategy Slider Panel */}
@@ -401,45 +479,60 @@ export function SearchResults({
       )}
 
       {/* 3. Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {results.map((card, idx) => {
-          const img = getCardImg(card);
-          const fallbackImg = getFallbackImg(card);
-          const setName = card.setName || card.set_name || 'Expansion';
-          const owned = isOwned ? isOwned(card) : false;
-          const inWishlist = isTracked ? isTracked(card) : false;
+      {(() => {
+        const gridClass =
+          gridCols === '3'
+            ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+            : gridCols === '4'
+            ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
+            : gridCols === '5'
+            ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
+            : gridCols === '6'
+            ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
+            : 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6';
 
-          const hasLanguages = card.languages && Object.keys(card.languages).length > 1;
-          const hasSavings = Boolean(card.savingsVsEnglish && card.savingsVsEnglish > 0);
-          const cardLang = card.language || 'en';
+        return (
+          <div className={`grid ${gridClass} ${density === 'compact' ? 'gap-2.5' : 'gap-4'}`}>
+            {results.map((card, idx) => {
+              const img = getCardImg(card);
+              const fallbackImg = getFallbackImg(card);
+              const setName = card.setName || card.set_name || 'Expansion';
+              const owned = isOwned ? isOwned(card) : false;
+              const inWishlist = isTracked ? isTracked(card) : false;
 
-          const chosenLang = getChosenLangForCard(card);
-          const chosenPrice = getChosenPriceForCard(card, chosenLang);
-          const isExplicitlyChosen = explicitlySelectedIds.has(card.id);
-          const chosenLangDisplay = chosenLang === 'zh' ? 'CH' : chosenLang.toUpperCase();
+              const hasLanguages = card.languages && Object.keys(card.languages).length > 1;
+              const hasSavings = Boolean(card.savingsVsEnglish && card.savingsVsEnglish > 0);
+              const cardLang = card.language || 'en';
 
-          return (
-            <div
-              key={card.id || idx}
-              className={`group bg-white dark:bg-gray-800/90 rounded-2xl border transition flex flex-col justify-between p-4 ${
-                isExplicitlyChosen
-                  ? 'border-indigo-400 dark:border-indigo-600 ring-2 ring-indigo-500/30 shadow-md shadow-indigo-500/10'
-                  : owned
-                  ? 'border-emerald-200 dark:border-emerald-800/60'
-                  : 'border-gray-100 dark:border-gray-700/80 hover:border-gray-200 dark:hover:border-gray-600 hover:shadow-md'
-              }`}
-            >
-              <div>
-                <div className="flex gap-3">
-                  <div className="w-20 h-28 flex-shrink-0 bg-gray-50 dark:bg-gray-900 rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800 flex items-center justify-center p-1 relative">
-                    <SafeImage
-                      src={img}
-                      fallbackSrc={fallbackImg}
-                      alt={card.name}
-                      fallbackText={card.name}
-                      className="w-full h-full object-contain transition-transform group-hover:scale-105 duration-200"
-                    />
-                  </div>
+              const chosenLang = getChosenLangForCard(card);
+              const chosenPrice = getChosenPriceForCard(card, chosenLang);
+              const isExplicitlyChosen = explicitlySelectedIds.has(card.id);
+              const chosenLangDisplay = chosenLang === 'zh' ? 'CH' : chosenLang.toUpperCase();
+
+              return (
+                <div
+                  key={card.id || idx}
+                  className={`group bg-white dark:bg-gray-800/90 rounded-2xl border transition flex flex-col justify-between ${
+                    density === 'compact' ? 'p-2.5' : 'p-4'
+                  } ${
+                    isExplicitlyChosen
+                      ? 'border-indigo-400 dark:border-indigo-600 ring-2 ring-indigo-500/30 shadow-md shadow-indigo-500/10'
+                      : owned
+                      ? 'border-emerald-200 dark:border-emerald-800/60'
+                      : 'border-gray-100 dark:border-gray-700/80 hover:border-gray-200 dark:hover:border-gray-600 hover:shadow-md'
+                  }`}
+                >
+                  <div>
+                    <div className={`flex ${density === 'compact' ? 'gap-2' : 'gap-3'}`}>
+                      <div className={`${density === 'compact' ? 'w-14 h-20' : 'w-20 h-28'} flex-shrink-0 bg-gray-50 dark:bg-gray-900 rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800 flex items-center justify-center p-1 relative`}>
+                        <SafeImage
+                          src={img}
+                          fallbackSrc={fallbackImg}
+                          alt={card.name}
+                          fallbackText={card.name}
+                          className="w-full h-full object-contain transition-transform group-hover:scale-105 duration-200"
+                        />
+                      </div>
 
                   <div className="flex-1 flex flex-col justify-start min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -579,13 +672,19 @@ export function SearchResults({
                 <div className="grid grid-cols-3 gap-1.5">
                   <button
                     type="button"
-                    onClick={() => onToggleOwned && onToggleOwned(card)}
+                    onClick={() => {
+                      if (onOpenOwnModal) {
+                        onOpenOwnModal(card);
+                      } else if (onToggleOwned) {
+                        onToggleOwned(card);
+                      }
+                    }}
                     className={`flex items-center justify-center gap-1 py-2 px-1.5 rounded-xl text-xs font-bold transition border cursor-pointer ${
                       owned
                         ? 'bg-emerald-600 text-white border-emerald-700 shadow-2xs hover:bg-emerald-700'
                         : 'bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60'
                     }`}
-                    title={owned ? 'Card is in your collection - click to remove' : 'Mark as owned (adds directly to collection)'}
+                    title={owned ? 'Card is in your collection - click to edit details' : 'Mark as owned (set price, language, condition)'}
                   >
                     {owned ? <Check className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />}
                     <span className="truncate">{owned ? 'Owned' : 'I Own'}</span>
@@ -619,6 +718,8 @@ export function SearchResults({
           );
         })}
       </div>
-    </div>
+    );
+  })()}
+</div>
   );
 }
