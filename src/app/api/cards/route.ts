@@ -617,7 +617,7 @@ export async function GET(request: Request) {
       }
     };
 
-    // 2. Add Japanese cards: Drop duplicates with English counterparts & translate true exclusives
+    // 2. Add Japanese cards: Drop duplicates with English counterparts & only add true exclusives
     for (const card of jaResults) {
       const counterpart = findEnglishCounterpart(card, enResults);
 
@@ -638,12 +638,35 @@ export async function GET(request: Request) {
           }
         }
       } else {
-        const { englishName, isTranslated } = translateJapaneseCardName(card.name);
         const isTrueExclusive = isTrueJapaneseExclusive(card);
+
+        // Strict Deduplication Rule: If searching in English (wantEn=true),
+        // NEVER add regular Japanese cards as standalone entries. Only true exclusives!
+        if (wantEn && !isTrueExclusive) {
+          continue;
+        }
+
+        const { englishName, isTranslated } = translateJapaneseCardName(card.name);
         const baseEnglish = isTranslated ? englishName : (translateAsianCardName(card.name).englishName || card.name);
         const cleanName = baseEnglish.replace(/\s*\[(JA|JP) Exclusive\]/gi, '').trim();
         const displayName = isTrueExclusive ? `${cleanName} [JP Exclusive]` : cleanName;
         const englishSetName = getEnglishSetName(card.setName || card.set_name || card.id);
+
+        // Check if translated name matches any English card
+        const normalizedDisplayName = normalizeCardName(cleanName);
+        const alreadyExistsInEn = enResults.some(
+          (enCard) => normalizeCardName(enCard.name) === normalizedDisplayName
+        );
+        if (alreadyExistsInEn) {
+          continue;
+        }
+
+        // Skip if the card has non-Latin characters in its name or set name
+        const NON_LATIN = /[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf\uac00-\ud7af]/;
+        if (NON_LATIN.test(cleanName) || NON_LATIN.test(englishSetName)) continue;
+
+        // Skip if card has no image
+        if (!card.image && !card.imageUrl && !card.tcgplayerId) continue;
 
         const jaCardToAdd: SearchCardResult = {
           ...card,
@@ -659,7 +682,7 @@ export async function GET(request: Request) {
       }
     }
 
-    // 3. Add Korean cards: Deduplicate against English cards & translate
+    // 3. Add Korean cards: Attach to English counterparts; never show standalone duplicates
     for (const card of koResults) {
       const counterpart = findEnglishCounterpart(card, enResults);
       if (counterpart) {
@@ -675,9 +698,12 @@ export async function GET(request: Request) {
             );
           }
         }
-      } else {
+      } else if (!wantEn) {
+        // Only allow standalone Korean cards if English was not part of the search
         const { englishName, isTranslated } = translateAsianCardName(card.name);
         const displayName = isTranslated ? englishName : card.name;
+        const NON_LATIN_KO = /[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf\uac00-\ud7af]/;
+        if (NON_LATIN_KO.test(displayName)) continue;
         const englishSetName = getEnglishSetName(card.setName || card.set_name || card.id);
         const key = `ko-${card.id}`;
         if (!combinedMap.has(key)) {
@@ -693,7 +719,7 @@ export async function GET(request: Request) {
       }
     }
 
-    // 4. Add Chinese cards: Deduplicate against English cards & translate
+    // 4. Add Chinese cards: Deduplicate against English cards & only show true exclusives standalone
     for (const card of zhResults) {
       const isZhExclusive = isTrueChineseExclusive(card);
       const counterpart = !isZhExclusive ? findEnglishCounterpart(card, enResults) : null;
@@ -711,10 +737,25 @@ export async function GET(request: Request) {
           }
         }
       } else {
+        // If English is requested, only add true Chinese exclusives as standalone
+        if (wantEn && !isZhExclusive) {
+          continue;
+        }
+
         const { englishName, isTranslated } = translateAsianCardName(card.name);
         const cleanBase = isTranslated ? englishName : card.name.replace(/\s*\[(ZH|CH) Exclusive\]/gi, '');
         const displayName = isZhExclusive ? `${cleanBase} [CH Exclusive]` : cleanBase;
         const englishSetName = getEnglishSetName(card.setName || card.set_name || card.id);
+
+        const NON_LATIN_ZH = /[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf\uac00-\ud7af]/;
+        if (NON_LATIN_ZH.test(cleanBase) || NON_LATIN_ZH.test(englishSetName)) continue;
+
+        if (!isZhExclusive) {
+          const zhMatchesEn = enResults.some(
+            (enCard) => normalizeCardName(enCard.name) === normalizeCardName(cleanBase)
+          );
+          if (zhMatchesEn) continue;
+        }
 
         const key = `zh-${card.id}`;
         if (!combinedMap.has(key)) {
@@ -757,7 +798,8 @@ export async function GET(request: Request) {
         if (!matchesQuery) continue;
       }
 
-      if (category && !isExclusivesFilter && !mentionsChina) {
+      // Always strictly enforce category — e.g. never return Pokemon when user selected Trainer
+      if (category) {
         const catLower = category.toLowerCase();
         if (catLower.includes('trainer') && !curated.category?.toLowerCase().includes('trainer')) {
           continue;
@@ -767,7 +809,8 @@ export async function GET(request: Request) {
         }
       }
 
-      if (trainerType && !isExclusivesFilter && !mentionsChina) {
+      // Always strictly enforce trainerType — e.g. never return regular Pokemon when user selected Supporter
+      if (trainerType) {
         const tLower = trainerType.toLowerCase().trim();
         if (!curated.trainerType || !curated.trainerType.toLowerCase().includes(tLower)) {
           continue;
@@ -821,9 +864,40 @@ export async function GET(request: Request) {
     }
 
     const allCards = Array.from(combinedMap.values());
+
+    // Final hygiene filter: Drop any card that has non-Latin text, missing images, or violates category/trainerType
+    const NON_LATIN_FINAL = /[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf\uac00-\ud7af]/;
+    const finalCards = allCards.filter((card) => {
+      // Must not have Japanese/Chinese/Korean characters in card name or set name
+      if (NON_LATIN_FINAL.test(card.name || '') || NON_LATIN_FINAL.test(card.setName || card.set_name || '')) {
+        return false;
+      }
+
+      // Must have valid image
+      const hasImg = Boolean(
+        (card.image && !card.image.includes('cardback') && !card.image.includes('back.png')) ||
+        (card.imageUrl && !card.imageUrl.includes('cardback') && !card.imageUrl.includes('back.png')) ||
+        (card.tcgplayerId && card.language === 'en') ||
+        (card.id && card.number)
+      );
+      if (!hasImg) return false;
+
+      // Category and TrainerType validation
+      if (trainerType) {
+        const tLower = trainerType.toLowerCase().trim();
+        if (tLower.includes('supporter') && card.category === 'Pokemon') return false;
+      }
+      if (category) {
+        const catLower = category.toLowerCase().trim();
+        if (catLower.includes('trainer') && card.category === 'Pokemon') return false;
+      }
+
+      return true;
+    });
+
     return NextResponse.json({
-      data: allCards,
-      total: allCards.length,
+      data: finalCards,
+      total: finalCards.length,
       languages: requestedLanguages
     });
   } catch (error) { 

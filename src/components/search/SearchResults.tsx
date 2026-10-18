@@ -40,7 +40,7 @@ interface EraSectionDef {
 const ERA_SECTIONS: EraSectionDef[] = [
   {
     id: 'me',
-    title: 'Mega Evolution & Pocket',
+    title: 'Mega Evolution',
     badge: 'ME',
     icon: '⚡',
     colorClass: 'from-amber-500/10 via-orange-500/15 to-red-500/10 border-orange-300 dark:border-orange-800 text-orange-900 dark:text-orange-200'
@@ -240,74 +240,78 @@ export function SearchResults({
     }
   };
 
-  const getCardImg = (card: SearchCardResult) => {
+  const getCardImageCandidates = (card: SearchCardResult): string[] => {
+    const list: string[] = [];
+
+    // 1. Existing card image fields (high & low webp)
     if (card.image && !card.image.includes('cardback') && !card.image.includes('back.png')) {
-      return card.image;
+      list.push(card.image);
+      if (card.image.endsWith('/high.webp')) {
+        list.push(card.image.replace('/high.webp', '/low.webp'));
+      }
     }
     if (card.imageUrl && !card.imageUrl.includes('cardback') && !card.imageUrl.includes('back.png')) {
-      return card.imageUrl;
-    }
-    if (card.id && (card.language === 'ja' || card.language === 'zh' || card.language === 'ko')) {
-      const parts = card.id.split('-');
-      if (parts.length >= 2) {
-        const rawSet = parts[0];
-        const num = parts[1];
-        const isSwsh = rawSet.toUpperCase().startsWith('SWSH') || rawSet.toUpperCase().startsWith('S') || rawSet.toUpperCase().startsWith('CS');
-        const series = rawSet.toUpperCase().startsWith('SV')
-          ? 'SV'
-          : rawSet.toUpperCase().startsWith('SM')
-          ? 'SM'
-          : isSwsh
-          ? 'S'
-          : rawSet.toUpperCase().startsWith('XY')
-          ? 'XY'
-          : rawSet.toUpperCase().startsWith('BW')
-          ? 'BW'
-          : 'SV';
-        const paddedNum = /^\d+$/.test(num) ? num.padStart(3, '0') : num;
-        return `https://assets.tcgdex.net/ja/${series}/${rawSet}/${paddedNum}/high.webp`;
+      if (!list.includes(card.imageUrl)) list.push(card.imageUrl);
+      if (card.imageUrl.endsWith('/high.webp')) {
+        list.push(card.imageUrl.replace('/high.webp', '/low.webp'));
       }
     }
-    if (card.tcgplayerId && card.language === 'en') {
-      return `https://product-images.tcgplayer.com/fit-in/438x438/${card.tcgplayerId}.jpg`;
-    }
-    if (card.id && card.number) {
-      const setSlug = card.id.split('-')[0]?.replace('.', '').toLowerCase();
-      return `https://images.pokemontcg.io/${setSlug}/${card.number}.png`;
-    }
-    return '';
-  };
 
-  const getFallbackImg = (card: SearchCardResult) => {
-    if (card.id && (card.language === 'ja' || card.language === 'zh' || card.language === 'ko')) {
-      const parts = card.id.split('-');
-      if (parts.length >= 2) {
-        const rawSet = parts[0];
-        const num = parts[1];
-        const isSwsh = rawSet.toUpperCase().startsWith('SWSH') || rawSet.toUpperCase().startsWith('S') || rawSet.toUpperCase().startsWith('CS');
-        const series = rawSet.toUpperCase().startsWith('SV')
-          ? 'SV'
-          : rawSet.toUpperCase().startsWith('SM')
-          ? 'SM'
-          : isSwsh
-          ? 'S'
-          : rawSet.toUpperCase().startsWith('XY')
-          ? 'XY'
-          : rawSet.toUpperCase().startsWith('BW')
-          ? 'BW'
-          : 'SV';
-        const paddedNum = /^\d+$/.test(num) ? num.padStart(3, '0') : num;
-        return `https://assets.tcgdex.net/ja/${series}/${rawSet}/${paddedNum}/high.webp`;
+    // 2. TCGPlayer CDN (High res and standard fits)
+    if (card.tcgplayerId) {
+      list.push(`https://product-images.tcgplayer.com/fit-in/438x438/${card.tcgplayerId}.jpg`);
+      list.push(`https://tcgplayer-cdn.tcgplayer.com/product/${card.tcgplayerId}_in_1000x1000.jpg`);
+      list.push(`https://product-images.tcgplayer.com/fit-in/650x650/${card.tcgplayerId}.jpg`);
+    }
+
+    // 3. Official pokemontcg.io scans
+    const cleanId = (card.id || '').toLowerCase();
+    const parts = cleanId.split('-');
+    const rawSet = parts[0] || '';
+    const num = card.number || parts[1] || '';
+    const paddedNum = /^\d+$/.test(num) ? num.padStart(3, '0') : num;
+
+    if (rawSet && num) {
+      const setSlug = rawSet.replace('.', '').toLowerCase();
+      list.push(`https://images.pokemontcg.io/${setSlug}/${num}_hires.png`);
+      list.push(`https://images.pokemontcg.io/${setSlug}/${num}.png`);
+      if (paddedNum !== num) {
+        list.push(`https://images.pokemontcg.io/${setSlug}/${paddedNum}_hires.png`);
+        list.push(`https://images.pokemontcg.io/${setSlug}/${paddedNum}.png`);
       }
     }
-    if (card.tcgplayerId && card.language === 'en') {
-      return `https://product-images.tcgplayer.com/fit-in/438x438/${card.tcgplayerId}.jpg`;
+
+    // 4. TCGdex Japanese & Asian CDN
+    if (rawSet && num) {
+      const rawUpper = rawSet.toUpperCase();
+      const isSwsh = rawUpper.startsWith('SWSH') || rawUpper.startsWith('S') || rawUpper.startsWith('CS');
+      const series = rawUpper.startsWith('ME')
+        ? 'ME'
+        : rawUpper.startsWith('SV')
+        ? 'SV'
+        : rawUpper.startsWith('SM')
+        ? 'SM'
+        : isSwsh
+        ? 'S'
+        : rawUpper.startsWith('XY')
+        ? 'XY'
+        : rawUpper.startsWith('BW')
+        ? 'BW'
+        : 'SV';
+
+      list.push(`https://assets.tcgdex.net/ja/${series}/${rawSet}/${paddedNum}/high.webp`);
+      list.push(`https://assets.tcgdex.net/ja/${series}/${rawSet}/${paddedNum}/low.webp`);
+      list.push(`https://assets.tcgdex.net/en/${series.toLowerCase()}/${rawSet}/${num}/high.webp`);
+      list.push(`https://assets.tcgdex.net/en/${series.toLowerCase()}/${rawSet}/${num}/low.webp`);
+
+      // Special case for Tag All Stars (SM12a) casing
+      if (cleanId.includes('sm12a') || rawSet === 'sm12a') {
+        list.push(`https://assets.tcgdex.net/ja/SM/sm12a/${paddedNum}/high.webp`);
+        list.push(`https://assets.tcgdex.net/ja/sm/sm12a/${paddedNum}/high.webp`);
+      }
     }
-    if (card.id && card.number) {
-      const setSlug = card.id.split('-')[0]?.replace('.', '').toLowerCase();
-      return `https://images.pokemontcg.io/${setSlug}/${card.number}.png`;
-    }
-    return '';
+
+    return list.filter((url, idx, self) => Boolean(url && self.indexOf(url) === idx));
   };
 
   const selectedCount = explicitlySelectedIds.size;
@@ -317,6 +321,8 @@ export function SearchResults({
   }).length;
 
   // Group cards by Pokémon era in chronological order with centered headers
+  const NON_LATIN_RE = /[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf\uac00-\ud7af]/;
+
   const groupedByEra = useMemo(() => {
     const map: Record<string, SearchCardResult[]> = {};
     for (const era of ERA_SECTIONS) {
@@ -324,10 +330,18 @@ export function SearchResults({
     }
 
     for (const card of results) {
-      let eraId = getCardEra(card.id, card.setName || card.set_name);
-      if (['ecard', 'neo', 'vintage'].includes(eraId)) {
-        eraId = 'classic';
+      // Skip cards with non-English card names or set names (they leaked through dedup)
+      if (NON_LATIN_RE.test(card.name || '') || NON_LATIN_RE.test(card.setName || card.set_name || '')) {
+        continue;
       }
+
+      // Check if any candidate image can be produced
+      const candidates = getCardImageCandidates(card);
+      if (candidates.length === 0) continue;
+
+      let eraId = getCardEra(card.id, card.setName || card.set_name);
+      // Remaps
+      if (['ecard', 'neo', 'vintage'].includes(eraId)) eraId = 'classic';
       if (!map[eraId]) {
         map[eraId] = [];
       }
@@ -341,6 +355,7 @@ export function SearchResults({
         cards: map[sec.id]
       }));
   }, [results]);
+
 
   return (
     <div className="space-y-4">
@@ -623,8 +638,9 @@ export function SearchResults({
               }}
             >
               {sec.cards.map((card, idx) => {
-                const img = getCardImg(card);
-                const fallbackImg = getFallbackImg(card);
+                const imageCandidates = getCardImageCandidates(card);
+                const primaryImg = imageCandidates[0] || '';
+                const backupImgs = imageCandidates.slice(1);
                 const setName = card.setName || card.set_name || 'Expansion';
                 const owned = isOwned ? isOwned(card) : false;
                 const inWishlist = isTracked ? isTracked(card) : false;
@@ -638,11 +654,19 @@ export function SearchResults({
                 const isExplicitlyChosen = explicitlySelectedIds.has(card.id);
                 const chosenLangDisplay = chosenLang === 'zh' ? 'CH' : chosenLang.toUpperCase();
 
+                // Dynamic image sizing: scales with the slider
+                // At 210px min-width → imgW≈90px; at 420px → imgW≈180px
+                const isCompact = density === 'compact';
+                const imgW = Math.round(cardMinSize * (isCompact ? 0.38 : 0.42));
+                const imgH = Math.round(imgW * 1.4); // standard card aspect ratio
+
+                const isLarge = cardMinSize >= 330;
+
                 return (
                   <div
                     key={card.id || idx}
                     className={`group bg-white dark:bg-gray-800/90 rounded-2xl border transition flex flex-col justify-between overflow-hidden ${
-                      density === 'compact' ? 'p-2.5' : 'p-3.5'
+                      isCompact ? 'p-2.5' : isLarge ? 'p-4' : 'p-3.5'
                     } ${
                       isExplicitlyChosen
                         ? 'border-indigo-400 dark:border-indigo-600 ring-2 ring-indigo-500/30 shadow-md shadow-indigo-500/10'
@@ -652,11 +676,16 @@ export function SearchResults({
                     }`}
                   >
                     <div>
-                      <div className={`flex ${density === 'compact' ? 'gap-2' : 'gap-2.5'} min-w-0`}>
-                        <div className={`${density === 'compact' ? 'w-16 h-22' : 'w-20 h-28'} shrink-0 bg-gray-50 dark:bg-gray-900 rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800 flex items-center justify-center p-1 relative`}>
+                      <div className={`flex ${isCompact ? 'gap-2' : isLarge ? 'gap-3.5' : 'gap-2.5'} min-w-0`}>
+                        {/* Card Image — dynamically sized via slider */}
+                        <div
+                          className="shrink-0 bg-gray-50 dark:bg-gray-900 rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800 flex items-center justify-center p-1 relative"
+                          style={{ width: `${imgW}px`, height: `${imgH}px` }}
+                        >
                           <SafeImage
-                            src={img}
-                            fallbackSrc={fallbackImg}
+                            src={primaryImg}
+                            fallbackSrc={backupImgs[0]}
+                            backupSrcs={backupImgs.slice(1)}
                             alt={card.name}
                             fallbackText={card.name}
                             className="w-full h-full object-contain transition-transform group-hover:scale-105 duration-200"
@@ -687,25 +716,25 @@ export function SearchResults({
                             )}
                           </div>
 
-                          <h4 className="font-bold text-gray-900 dark:text-gray-100 text-sm leading-tight truncate mt-1 block" title={card.name}>
+                          <h4 className={`font-bold text-gray-900 dark:text-gray-100 ${isLarge ? 'text-base' : 'text-sm'} leading-tight truncate mt-1 block`} title={card.name}>
                             {card.name}
                           </h4>
 
-                          <span className="text-xs text-blue-600 dark:text-blue-400 font-medium truncate mt-0.5 block" title={setName}>
+                          <span className={`${isLarge ? 'text-sm' : 'text-xs'} text-blue-600 dark:text-blue-400 font-medium truncate mt-0.5 block`} title={setName}>
                             {setName}
                           </span>
 
                           {card.rarity && card.rarity.toLowerCase() !== 'none' && (
-                            <span className="inline-block mt-1 text-[10px] font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-200 dark:border-purple-800/60 max-w-full truncate" title={card.rarity}>
+                            <span className={`inline-block mt-1 ${isLarge ? 'text-[11px]' : 'text-[10px]'} font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-200 dark:border-purple-800/60 max-w-full truncate`} title={card.rarity}>
                               {card.rarity}
                             </span>
                           )}
 
                           <div className="mt-auto pt-1 flex items-baseline gap-1.5 flex-wrap">
-                            <span className="text-[11px] text-gray-400 shrink-0">
+                            <span className={`${isLarge ? 'text-xs' : 'text-[11px]'} text-gray-400 shrink-0`}>
                               {cardLang === 'ja' ? 'JP Mkt:' : cardLang === 'zh' ? 'CH Mkt:' : cardLang === 'ko' ? 'KO Mkt:' : 'EN Mkt:'}
                             </span>
-                            <span className="text-sm font-extrabold text-gray-900 dark:text-gray-100 truncate">
+                            <span className={`${isLarge ? 'text-base' : 'text-sm'} font-extrabold text-gray-900 dark:text-gray-100 truncate`}>
                               {card.price ? formatCurrency(card.price) : 'N/A'}
                             </span>
                             {card.pricingSource && (

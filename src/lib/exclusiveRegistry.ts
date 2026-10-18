@@ -265,10 +265,10 @@ export interface EraDefinition {
 export const POKEMON_ERAS: EraDefinition[] = [
   {
     id: 'me',
-    name: 'Mega Era / Pocket (ME / M)',
-    shortName: 'Mega / Pocket',
-    years: '2025–2026+',
-    prefixes: ['me', 'm1', 'm2', 'm3', 'm4', 'm5', 'm-p']
+    name: 'Mega Evolution (ME)',
+    shortName: 'Mega Evolution',
+    years: '2025–Present',
+    prefixes: ['me', 'me01', 'me02', 'me03', 'me04', 'm1', 'm2', 'm3', 'm4', 'm5', 'm-p']
   },
   {
     id: 'sv',
@@ -363,6 +363,7 @@ export function getCardEra(cardId?: string, setName?: string): string {
   }
 
   // Fallbacks by set keywords
+  if (set.includes('chaos rising') || set.includes('mega evolution') || id.startsWith('me')) return 'me';
   if (set.includes('scarlet') || set.includes('violet') || set.includes('151') || set.includes('paldean') || set.includes('paradox') || set.includes('temporal') || set.includes('twilight') || set.includes('stellar') || set.includes('surging') || set.includes('prismatic')) return 'sv';
   if (set.includes('sword') || set.includes('shield') || set.includes('vivid') || set.includes('darkness') || set.includes('battle styles') || set.includes('chilling') || set.includes('evolving') || set.includes('fusion') || set.includes('brilliant') || set.includes('astral') || set.includes('lost origin') || set.includes('silver tempest') || set.includes('crown zenith')) return 'swsh';
   if (set.includes('sun') || set.includes('moon') || set.includes('guardians') || set.includes('burning shadows') || set.includes('crimson') || set.includes('ultra prism') || set.includes('forbidden light') || set.includes('celestial') || set.includes('dragon majesty') || set.includes('lost thunder') || set.includes('team up') || set.includes('unbroken') || set.includes('unified minds') || set.includes('hidden fates') || set.includes('cosmic eclipse') || set.includes('tag all stars')) return 'sm';

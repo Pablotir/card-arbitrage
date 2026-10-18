@@ -7,6 +7,7 @@ import { getProxiedImageUrl } from '@/utils/format';
 interface SafeImageProps {
   src?: string | null;
   fallbackSrc?: string | null;
+  backupSrcs?: (string | null | undefined)[];
   alt: string;
   className?: string;
   fallbackText?: string;
@@ -15,26 +16,30 @@ interface SafeImageProps {
 export function SafeImage({
   src,
   fallbackSrc,
+  backupSrcs,
   alt,
   className = '',
   fallbackText = 'No Image'
 }: SafeImageProps) {
-  const [hasError, setHasError] = useState(false);
+  // Construct deduplicated list of candidate image URLs
+  const candidates: string[] = [
+    src,
+    fallbackSrc,
+    ...(backupSrcs || [])
+  ].filter((url): url is string => Boolean(url && typeof url === 'string' && url.trim().length > 5));
+
+  const [candidateIndex, setCandidateIndex] = useState(0);
   const [triedDirect, setTriedDirect] = useState(false);
-  const [usingFallback, setUsingFallback] = useState(false);
-  const [triedFallbackDirect, setTriedFallbackDirect] = useState(false);
 
-  // Crucial: Reset states when image props change so new search results re-trigger load
+  // Reset pipeline when image sources change
   useEffect(() => {
-    setHasError(false);
+    setCandidateIndex(0);
     setTriedDirect(false);
-    setUsingFallback(false);
-    setTriedFallbackDirect(false);
-  }, [src, fallbackSrc]);
+  }, [src, fallbackSrc, JSON.stringify(backupSrcs || [])]);
 
-  const activeUrl = usingFallback ? fallbackSrc : src;
+  const hasExhaustedAll = candidateIndex >= candidates.length;
 
-  if (!activeUrl || hasError) {
+  if (candidates.length === 0 || hasExhaustedAll) {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center bg-gray-100 dark:bg-gray-800/80 text-gray-400 dark:text-gray-500 rounded-lg p-2 text-center select-none border border-dashed border-gray-200 dark:border-gray-700">
         <ImageOff className="w-5 h-5 mb-1 opacity-50" />
@@ -43,38 +48,25 @@ export function SafeImage({
     );
   }
 
-  // Determine current display URL:
-  // 1. Try proxied primary src
-  // 2. Try direct primary src
-  // 3. Try proxied fallbackSrc
-  // 4. Try direct fallbackSrc
-  let displaySrc: string;
-  if (!usingFallback) {
-    displaySrc = triedDirect ? activeUrl : getProxiedImageUrl(activeUrl);
-  } else {
-    displaySrc = triedFallbackDirect ? activeUrl : getProxiedImageUrl(activeUrl);
-  }
+  const currentUrl = candidates[candidateIndex];
+  // 1. First try proxied to avoid CORS / Referer blocking
+  // 2. If proxy fails, try direct CDN link
+  const displaySrc = triedDirect ? currentUrl : getProxiedImageUrl(currentUrl);
 
   const handleError = () => {
-    if (!usingFallback) {
-      if (!triedDirect && activeUrl.startsWith('http')) {
-        setTriedDirect(true);
-      } else if (fallbackSrc && fallbackSrc !== src) {
-        setUsingFallback(true);
-      } else {
-        setHasError(true);
-      }
+    if (!triedDirect && currentUrl.startsWith('http')) {
+      // Step A: Try direct unproxied request to this same candidate
+      setTriedDirect(true);
     } else {
-      if (!triedFallbackDirect && activeUrl.startsWith('http')) {
-        setTriedFallbackDirect(true);
-      } else {
-        setHasError(true);
-      }
+      // Step B: Advance to next backup candidate URL and start with proxy again
+      setTriedDirect(false);
+      setCandidateIndex((prev) => prev + 1);
     }
   };
 
   return (
     <img
+      key={`${candidateIndex}-${triedDirect ? 'direct' : 'proxy'}-${currentUrl}`}
       src={displaySrc}
       alt={alt}
       loading="lazy"
