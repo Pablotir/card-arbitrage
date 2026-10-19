@@ -113,7 +113,7 @@ export function FilterBar({
   const handlePresetFullArtTrainers = () => {
     onChange({
       ...filters,
-      languages: ['en', 'ja'],
+      languages: ['en', 'ja', 'zh'],
       categories: ['Supporter'],
       rarities: [
         'Promo',

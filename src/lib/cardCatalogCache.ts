@@ -1,7 +1,7 @@
 import { SearchCardResult } from './types';
 
-const CACHE_PREFIX = 'cfinder_catalog_cache_v2_';
-const OLD_PREFIXES = ['cfinder_catalog_cache_v1_'];
+const CACHE_PREFIX = 'cfinder_catalog_cache_v3_';
+const OLD_PREFIXES = ['cfinder_catalog_cache_v1_', 'cfinder_catalog_cache_v2_'];
 const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000; // 5 days in milliseconds (432,000,000 ms)
 
 export interface CatalogCacheEntry {

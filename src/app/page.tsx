@@ -26,6 +26,7 @@ import { formatCurrency } from '@/utils/format';
 import { getCachedCatalog, setCachedCatalog } from '@/lib/cardCatalogCache';
 import { getCardEra, matchSpecialType, isTrueJapaneseExclusive, isTrueChineseExclusive } from '@/lib/exclusiveRegistry';
 import { translateAsianCardName } from '@/lib/asianTranslations';
+import { isKnownPokemonSpecies } from '@/lib/pokemonSpecies';
 
 export default function Home() {
   const { theme, toggleTheme, mounted: themeMounted } = useTheme();
@@ -554,6 +555,7 @@ export default function Home() {
             if (cLower === 'pokemon') return false;
             if (card.types && card.types.length > 0) return false;
             if (card.hp) return false;
+            if (isKnownPokemonSpecies(card.name)) return false;
             // Supporter matching
             if (tLower === 'supporter' || cLower === 'supporter') return true;
             if (cLower === 'trainer' && (!tLower || tLower === 'supporter')) return true;
@@ -561,6 +563,7 @@ export default function Home() {
           }
           if (catLower === 'trainer') {
             if (cLower === 'pokemon') return false;
+            if (isKnownPokemonSpecies(card.name)) return false;
             return cLower === 'trainer' || Boolean(tLower);
           }
           if (catLower === 'pokemon') {

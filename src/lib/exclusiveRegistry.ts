@@ -106,13 +106,17 @@ export const TRUE_ZH_EXCLUSIVE_IDS = new Set<string>([
   // Pokémon Center Taipei Grand Opening Promo
   'sv-p-019', // Taipei Pikachu (019/SV-P)
 
-  // Gem Pack Vol. 1 - Vol. 4 Exclusive Alternate Artworks (Never printed in EN/JA)
+  // Gem Pack Vol. 1 - Vol. 7 Exclusive Alternate Artworks (Never printed in EN/JA)
   'gem-gengar',     // Exclusive Gengar with Clefairy dolls artwork
   'gem-cubone',     // Exclusive Cubone Full Art artwork
   'gem-ceruledge',  // Exclusive Ceruledge illustration
   'gem-ponyta',     // Exclusive Ponyta illustration
   'gem-arcanine-ex',// Exclusive Arcanine ex alternate art
   'gem-pikachu',    // Exclusive Captain Pikachu illustration
+  'gem-umbreon',    // Exclusive Umbreon Full Art
+  'gem-leafeon',    // Exclusive Leafeon Full Art
+  'gem-sylveon',    // Exclusive Sylveon Full Art
+  'cbb7c-psyduck',  // Exclusive Misty's Psyduck Illustration Rare (Gem Pack Vol. 7)
 
   // Simplified Chinese Starry Crystal (CSV9C) Exclusive Full Art Trainers
   'csv9c-257',      // Lisia's Appeal SAR Exclusive Alternate Artwork (257/208)
@@ -120,6 +124,25 @@ export const TRUE_ZH_EXCLUSIVE_IDS = new Set<string>([
   '257-csv9c',
   '241-csv9c',
   'cs-p-lisia',
+
+  // Simplified Chinese Expansion Exclusive SAR Trainers (Black Bolt, White Flare, etc.)
+  'csv11-ns-plan',  // N's Plan SAR (Black Bolt CSV11)
+  'csv12-hilda',    // Hilda SAR (White Flare CSV12)
+  'csv9pt5c-159',   // Rika SAR (Stellar Miracle CSV9.5C #159/129)
+  'csv4c-157',      // Larry SAR (Paradox Rift CSV4C #157/129)
+  'csv5c-245',      // Ciphermaniac's Codebreaking SAR (Temporal Forces CSV5C #245/204)
+  'csv7c-255',      // Carmine SAR (Mask of Change CSV7C #255/207)
+  'csv8c-276',      // Brock's Scouting SAR (Shrouded Fable CSV8C #276/222)
+
+  // Simplified Chinese Promos & Stamp Boxes
+  'cs-p-friends-alola', // Friends in Alola (Grand Opening Promo)
+  'cs-p-friends-galar', // Friends in Galar (Stamp Box Promo)
+
+  // Collect 151 C Pikachu Art Rares
+  '151c-170',
+  '151c-171',
+  '151c-172',
+  '151c-173',
 ]);
 
 // ==========================================
@@ -222,9 +245,9 @@ export function isTrueChineseExclusive(card: {
     return true;
   }
 
-  // 4. Gem Pack exclusive artworks (Simplified Chinese Gem Pack Vol 1-4)
-  if (setLower.includes('gem pack') || setLower.includes('九彩汇聚') || nameLower.includes('gem pack')) {
-    if (['gengar', 'cubone', 'ceruledge', 'ponyta', 'arcanine', 'captain pikachu'].some(k => nameLower.includes(k))) {
+  // 4. Gem Pack exclusive artworks (Simplified Chinese Gem Pack Vol 1-7)
+  if (setLower.includes('gem pack') || setLower.includes('九彩汇聚') || nameLower.includes('gem pack') || idNorm.includes('cbb')) {
+    if (['gengar', 'cubone', 'ceruledge', 'ponyta', 'arcanine', 'captain pikachu', 'umbreon', 'leafeon', 'sylveon', 'psyduck'].some(k => nameLower.includes(k))) {
       return true;
     }
   }
@@ -244,8 +267,33 @@ export function isTrueChineseExclusive(card: {
     if (['001', '002', '003', '004', '019', '033'].includes(localId)) return true;
   }
 
-  // 8. Simplified Chinese Lisia's Appeal Exclusive (Starry Crystal CSV9C 257/208 SAR & 241/208 SR)
+  // 8. Friends in Alola & Friends in Galar Chinese Exclusive Promos
+  if ((nameLower.includes('friends in alola') || nameLower.includes('friends in galar')) && (idNorm.includes('cs-p') || setLower.includes('cs-p') || setLower.includes('simplified'))) {
+    return true;
+  }
+
+  // 9. Simplified Chinese Starry Crystal (CSV9C) Exclusive Full Art Trainers (Lisia's Appeal 257 & 241)
   if (nameLower.includes('lisia') && (nameLower.includes('appeal') || setLower.includes('starry') || idNorm.includes('csv9c'))) {
+    return true;
+  }
+
+  // 10. Simplified Chinese Black Bolt & White Flare Exclusive SAR Trainers (N's Plan & Hilda)
+  if ((nameLower.includes("n's plan") || nameLower.includes('ns plan')) && (idNorm.includes('csv11') || setLower.includes('black bolt'))) {
+    return true;
+  }
+  if (nameLower.includes('hilda') && (idNorm.includes('csv12') || setLower.includes('white flare'))) {
+    return true;
+  }
+
+  // 11. Other Simplified Chinese Expansion Exclusive SAR Trainers (Rika, Larry, Ciphermaniac, Carmine, Brock)
+  if (idNorm.includes('csv') || setLower.includes('csv')) {
+    if (['rika', 'larry', 'ciphermaniac', 'carmine', 'brock'].some(k => nameLower.includes(k))) {
+      return true;
+    }
+  }
+
+  // 12. Collect 151 C Pikachu Art Rares (#170-#173)
+  if ((idNorm.includes('151c') || setLower.includes('151 c')) && ['170', '171', '172', '173'].includes(localId)) {
     return true;
   }
 
@@ -287,21 +335,21 @@ export const POKEMON_ERAS: EraDefinition[] = [
     name: 'Scarlet & Violet (SV)',
     shortName: 'Scarlet & Violet',
     years: '2023–Present',
-    prefixes: ['sv', 'sv01', 'sv02', 'sv03', 'sv04', 'sv05', 'sv06', 'sv07', 'sv08', 'sv-p', 'svln']
+    prefixes: ['sv', 'sv01', 'sv02', 'sv03', 'sv04', 'sv05', 'sv06', 'sv07', 'sv08', 'sv-p', 'svln', 'csv', 'cbb', '151c']
   },
   {
     id: 'swsh',
     name: 'Sword & Shield (SWSH)',
     shortName: 'Sword & Shield',
     years: '2020–2023',
-    prefixes: ['swsh', 's1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9', 's10', 's11', 's12', 's-p']
+    prefixes: ['swsh', 's1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9', 's10', 's11', 's12', 's-p', 'sc1', 'sc2', 'cs-p']
   },
   {
     id: 'sm',
     name: 'Sun & Moon (SM)',
     shortName: 'Sun & Moon',
     years: '2017–2019',
-    prefixes: ['sm', 'sma', 'sm-p', 'smp']
+    prefixes: ['sm', 'sma', 'sm-p', 'smp', 'ac1', 'ac2']
   },
   {
     id: 'xy',
@@ -376,8 +424,8 @@ export function getCardEra(cardId?: string, setName?: string): string {
 
   // Fallbacks by set keywords
   if (set.includes('chaos rising') || set.includes('mega evolution') || id.startsWith('me')) return 'me';
-  if (set.includes('scarlet') || set.includes('violet') || set.includes('151') || set.includes('paldean') || set.includes('paradox') || set.includes('temporal') || set.includes('twilight') || set.includes('stellar') || set.includes('surging') || set.includes('prismatic') || set.includes('starry') || id.includes('csv')) return 'sv';
-  if (set.includes('sword') || set.includes('shield') || set.includes('vivid') || set.includes('darkness') || set.includes('battle styles') || set.includes('chilling') || set.includes('evolving') || set.includes('fusion') || set.includes('brilliant') || set.includes('astral') || set.includes('lost origin') || set.includes('silver tempest') || set.includes('crown zenith')) return 'swsh';
+  if (set.includes('scarlet') || set.includes('violet') || set.includes('151') || set.includes('paldean') || set.includes('paradox') || set.includes('temporal') || set.includes('twilight') || set.includes('stellar') || set.includes('surging') || set.includes('prismatic') || set.includes('starry') || set.includes('gem pack') || id.includes('csv') || id.includes('cbb') || id.includes('151c')) return 'sv';
+  if (set.includes('sword') || set.includes('shield') || set.includes('vivid') || set.includes('darkness') || set.includes('battle styles') || set.includes('chilling') || set.includes('evolving') || set.includes('fusion') || set.includes('brilliant') || set.includes('astral') || set.includes('lost origin') || set.includes('silver tempest') || set.includes('crown zenith') || id.startsWith('sc1') || id.startsWith('sc2') || id.startsWith('cs-p')) return 'swsh';
   if (set.includes('sun') || set.includes('moon') || set.includes('guardians') || set.includes('burning shadows') || set.includes('crimson') || set.includes('ultra prism') || set.includes('forbidden light') || set.includes('celestial') || set.includes('dragon majesty') || set.includes('lost thunder') || set.includes('team up') || set.includes('unbroken') || set.includes('unified minds') || set.includes('hidden fates') || set.includes('cosmic eclipse') || set.includes('tag all stars')) return 'sm';
   if (set.includes('flashfire') || set.includes('furious fists') || set.includes('phantom forces') || set.includes('primal clash') || set.includes('roaring skies') || set.includes('ancient origins') || set.includes('breakthrough') || set.includes('breakpoint') || set.includes('generations') || set.includes('fates collide') || set.includes('steam siege') || set.includes('evolutions')) return 'xy';
   if (set.includes('noble victories') || set.includes('next destinies') || set.includes('dark explorers') || set.includes('dragons exalted') || set.includes('boundaries crossed') || set.includes('plasma')) return 'bw';
@@ -1259,8 +1307,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'cs-p-friends-alola',
     name: 'Friends in Alola (Simplified Chinese Grand Opening Promo) [CH Exclusive]',
     setName: 'Simplified Chinese CS-P Promos',
-    image: 'https://images.pokemontcg.io/smp/SM162_hires.png',
-    imageUrl: 'https://images.pokemontcg.io/smp/SM162_hires.png',
+    image: 'https://tcgplayer-cdn.tcgplayer.com/product/598478_in_1000x1000.jpg',
+    imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/598478_in_1000x1000.jpg',
     price: '380.00',
     rarity: 'Promo',
     category: 'Trainer',
@@ -1274,8 +1322,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'cs-p-friends-galar',
     name: 'Friends in Galar (Simplified Chinese Stamp Box Promo) [CH Exclusive]',
     setName: 'Simplified Chinese CS-P Promos',
-    image: 'https://images.pokemontcg.io/swshp/SWSH146_hires.png',
-    imageUrl: 'https://images.pokemontcg.io/swshp/SWSH146_hires.png',
+    image: 'https://images.pokemontcg.io/swsh9/TG23_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/swsh9/TG23_hires.png',
     price: '220.00',
     rarity: 'Promo',
     category: 'Trainer',
@@ -1289,8 +1337,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'csv9c-257',
     name: "Lisia's Appeal (Starry Crystal CSV9C SAR 257/208) [CH Exclusive]",
     setName: 'Starry Crystal (CSV9C)',
-    image: 'https://images.pokemontcg.io/sv7/164_hires.png',
-    imageUrl: 'https://images.pokemontcg.io/sv7/164_hires.png',
+    image: 'https://images.pokemontcg.io/sv8/246_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/sv8/246_hires.png',
     price: '240.00',
     rarity: 'Special Illustration Rare',
     category: 'Trainer',
@@ -1304,12 +1352,187 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'csv9c-241',
     name: "Lisia's Appeal (Starry Crystal CSV9C SR 241/208) [CH Exclusive]",
     setName: 'Starry Crystal (CSV9C)',
-    image: 'https://images.pokemontcg.io/sv7/164_hires.png',
-    imageUrl: 'https://images.pokemontcg.io/sv7/164_hires.png',
+    image: 'https://images.pokemontcg.io/sv8/234_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/sv8/234_hires.png',
     price: '85.00',
     rarity: 'Ultra Rare',
     category: 'Trainer',
     trainerType: 'Supporter',
+    language: 'zh',
+    game: 'pokemon',
+    isExclusive: true,
+    pricingSource: 'Asian Comps'
+  },
+  {
+    id: 'csv11-ns-plan',
+    name: "N's Plan (Black Bolt CSV11 SAR) [CH Exclusive]",
+    setName: 'Black Bolt (CSV11)',
+    image: 'https://images.pokemontcg.io/bw3/101_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/bw3/101_hires.png',
+    price: '210.00',
+    rarity: 'Special Illustration Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'zh',
+    game: 'pokemon',
+    isExclusive: true,
+    pricingSource: 'Asian Comps'
+  },
+  {
+    id: 'csv12-hilda',
+    name: 'Hilda (White Flare CSV12 SAR) [CH Exclusive]',
+    setName: 'White Flare (CSV12)',
+    image: 'https://images.pokemontcg.io/sm12/216_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/sm12/216_hires.png',
+    price: '280.00',
+    rarity: 'Special Illustration Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'zh',
+    game: 'pokemon',
+    isExclusive: true,
+    pricingSource: 'Asian Comps'
+  },
+  {
+    id: 'csv9pt5c-159',
+    name: 'Rika (Stellar Miracle CSV9.5C SAR 159/129) [CH Exclusive]',
+    setName: 'Stellar Miracle (CSV9.5C)',
+    image: 'https://images.pokemontcg.io/sv4/241_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/sv4/241_hires.png',
+    price: '125.00',
+    rarity: 'Special Illustration Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'zh',
+    game: 'pokemon',
+    isExclusive: true,
+    pricingSource: 'Asian Comps'
+  },
+  {
+    id: 'csv4c-157',
+    name: 'Larry (Paradox Rift CSV4C SAR 157/129) [CH Exclusive]',
+    setName: 'Paradox Rift (CSV4C)',
+    image: 'https://images.pokemontcg.io/sv4/235_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/sv4/235_hires.png',
+    price: '55.00',
+    rarity: 'Special Illustration Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'zh',
+    game: 'pokemon',
+    isExclusive: true,
+    pricingSource: 'Asian Comps'
+  },
+  {
+    id: 'csv5c-245',
+    name: "Ciphermaniac's Codebreaking (Temporal Forces CSV5C SAR 245/204) [CH Exclusive]",
+    setName: 'Temporal Forces (CSV5C)',
+    image: 'https://images.pokemontcg.io/sv5/198_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/sv5/198_hires.png',
+    price: '65.00',
+    rarity: 'Special Illustration Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'zh',
+    game: 'pokemon',
+    isExclusive: true,
+    pricingSource: 'Asian Comps'
+  },
+  {
+    id: 'csv7c-255',
+    name: 'Carmine (Mask of Change CSV7C SAR 255/207) [CH Exclusive]',
+    setName: 'Twilight Masquerade (CSV7C)',
+    image: 'https://images.pokemontcg.io/sv6/204_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/sv6/204_hires.png',
+    price: '145.00',
+    rarity: 'Special Illustration Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'zh',
+    game: 'pokemon',
+    isExclusive: true,
+    pricingSource: 'Asian Comps'
+  },
+  {
+    id: 'csv8c-276',
+    name: "Brock's Scouting (Shrouded Fable CSV8C SAR 276/222) [CH Exclusive]",
+    setName: 'Shrouded Fable (CSV8C)',
+    image: 'https://images.pokemontcg.io/sv3pt5/187_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/sv3pt5/187_hires.png',
+    price: '75.00',
+    rarity: 'Special Illustration Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'zh',
+    game: 'pokemon',
+    isExclusive: true,
+    pricingSource: 'Asian Comps'
+  },
+  {
+    id: 'cbb7c-psyduck',
+    name: "Misty's Psyduck (Gem Pack Vol. 7 CBB7C Exclusive Art) [CH Exclusive]",
+    setName: 'Simplified Chinese Gem Pack Vol. 7',
+    image: 'https://images.pokemontcg.io/sv3pt5/175_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/sv3pt5/175_hires.png',
+    price: '160.00',
+    rarity: 'Illustration Rare',
+    category: 'Pokemon',
+    language: 'zh',
+    game: 'pokemon',
+    isExclusive: true,
+    pricingSource: 'Asian Comps'
+  },
+  {
+    id: '151c-170',
+    name: 'Pikachu (Collect 151 C Art Rare 170/165) [CH Exclusive]',
+    setName: 'Collect 151 (151 C)',
+    image: 'https://images.pokemontcg.io/sv3pt5/173_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/sv3pt5/173_hires.png',
+    price: '110.00',
+    rarity: 'Illustration Rare',
+    category: 'Pokemon',
+    language: 'zh',
+    game: 'pokemon',
+    isExclusive: true,
+    pricingSource: 'Asian Comps'
+  },
+  {
+    id: 'gem-umbreon',
+    name: 'Umbreon (Gem Pack Vol. 5 Exclusive Full Art) [CH Exclusive]',
+    setName: 'Simplified Chinese Gem Pack Vol. 5',
+    image: 'https://images.pokemontcg.io/swsh7/215_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/swsh7/215_hires.png',
+    price: '320.00',
+    rarity: 'Special Illustration Rare',
+    category: 'Pokemon',
+    language: 'zh',
+    game: 'pokemon',
+    isExclusive: true,
+    pricingSource: 'Asian Comps'
+  },
+  {
+    id: 'gem-leafeon',
+    name: 'Leafeon (Gem Pack Vol. 5 Exclusive Full Art) [CH Exclusive]',
+    setName: 'Simplified Chinese Gem Pack Vol. 5',
+    image: 'https://images.pokemontcg.io/swsh7/205_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/swsh7/205_hires.png',
+    price: '140.00',
+    rarity: 'Illustration Rare',
+    category: 'Pokemon',
+    language: 'zh',
+    game: 'pokemon',
+    isExclusive: true,
+    pricingSource: 'Asian Comps'
+  },
+  {
+    id: 'gem-sylveon',
+    name: 'Sylveon (Gem Pack Vol. 6 Exclusive Full Art) [CH Exclusive]',
+    setName: 'Simplified Chinese Gem Pack Vol. 6',
+    image: 'https://images.pokemontcg.io/swsh7/212_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/swsh7/212_hires.png',
+    price: '260.00',
+    rarity: 'Special Illustration Rare',
+    category: 'Pokemon',
     language: 'zh',
     game: 'pokemon',
     isExclusive: true,

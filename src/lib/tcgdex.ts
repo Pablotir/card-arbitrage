@@ -2,6 +2,7 @@ import { SearchCardResult, SetInfo } from './types';
 import { getKnownCardPrice } from './knownPrices';
 import { translateAsianCardName } from './asianTranslations';
 import { getEnglishSetName } from './setEquivalents';
+import { isKnownPokemonSpecies } from './pokemonSpecies';
 
 const TCGDEX_ROOT = 'https://api.tcgdex.net/v2';
 
@@ -252,7 +253,14 @@ export async function searchTcgdexCards(
             if (/\b(ex|vmax|vstar|gx|lv\.x)\b/i.test(rawLower) || /ex$/i.test(rawLower)) {
               return null;
             }
-            if (['sv-p-012', 'sv-p-020', 'sv-p-021'].includes((d.id || '').toLowerCase())) {
+            if (isKnownPokemonSpecies(d.name)) {
+              return null;
+            }
+            const { englishName, isTranslated } = translateAsianCardName(d.name);
+            if (isTranslated && isKnownPokemonSpecies(englishName)) {
+              return null;
+            }
+            if (['sv-p-012', 'sv-p-020', 'sv-p-021', 'sv-p-010', 'sv-p-022', 'sv-p-007'].includes((d.id || '').toLowerCase())) {
               return null;
             }
           }

@@ -35,6 +35,31 @@ export const SET_EQUIVALENTS: SetEquivalent[] = [
   { jpCode: 'sv9a', jpNameEn: 'Heat Wave Arena', jpNameKana: '熱風のアリーナ', enSetName: 'Journey Together', era: 'sv' },
   { jpCode: 'sv-p', jpNameEn: 'SV-P Promotional Cards', jpNameKana: 'プロモカードパック', enSetName: 'Scarlet & Violet Promos', era: 'sv' },
 
+  // --- Simplified Chinese Scarlet & Violet Sets ---
+  { jpCode: 'csv1', jpNameEn: 'Scarlet & Violet (CSV1)', enSetName: 'Scarlet & Violet', era: 'sv' },
+  { jpCode: 'csv2', jpNameEn: 'Paldea Evolved (CSV2)', enSetName: 'Paldea Evolved', era: 'sv' },
+  { jpCode: 'csv3', jpNameEn: 'Obsidian Flames (CSV3)', enSetName: 'Obsidian Flames', era: 'sv' },
+  { jpCode: 'csv4c', jpNameEn: 'Paradox Rift (CSV4C)', enSetName: 'Paradox Rift', era: 'sv' },
+  { jpCode: 'csv5c', jpNameEn: 'Temporal Forces (CSV5C)', enSetName: 'Temporal Forces', era: 'sv' },
+  { jpCode: 'csv6c', jpNameEn: 'Twilight Masquerade (CSV6C)', enSetName: 'Twilight Masquerade', era: 'sv' },
+  { jpCode: 'csv7c', jpNameEn: 'Mask of Change (CSV7C)', enSetName: 'Twilight Masquerade', era: 'sv' },
+  { jpCode: 'csv8c', jpNameEn: 'Shrouded Fable (CSV8C)', enSetName: 'Shrouded Fable', era: 'sv' },
+  { jpCode: 'csv9c', jpNameEn: 'Starry Crystal (CSV9C)', enSetName: 'Stellar Crown', era: 'sv' },
+  { jpCode: 'csv9.5c', jpNameEn: 'Stellar Miracle (CSV9.5C)', enSetName: 'Stellar Crown', era: 'sv' },
+  { jpCode: 'csv10', jpNameEn: 'Surging Sparks (CSV10)', enSetName: 'Surging Sparks', era: 'sv' },
+  { jpCode: 'csv11', jpNameEn: 'Black Bolt (CSV11)', enSetName: 'Prismatic Evolutions', era: 'sv' },
+  { jpCode: 'csv12', jpNameEn: 'White Flare (CSV12)', enSetName: 'Prismatic Evolutions', era: 'sv' },
+  { jpCode: '151 c', jpNameEn: 'Collect 151 (151 C)', enSetName: '151', era: 'sv' },
+  { jpCode: '151c', jpNameEn: 'Collect 151 (151 C)', enSetName: '151', era: 'sv' },
+  { jpCode: 'cbb1c', jpNameEn: 'Gem Pack Vol. 1 (CBB1C)', enSetName: 'Gem Pack Vol. 1', era: 'sv' },
+  { jpCode: 'cbb2c', jpNameEn: 'Gem Pack Vol. 2 (CBB2C)', enSetName: 'Gem Pack Vol. 2', era: 'sv' },
+  { jpCode: 'cbb3c', jpNameEn: 'Gem Pack Vol. 3 (CBB3C)', enSetName: 'Gem Pack Vol. 3', era: 'sv' },
+  { jpCode: 'cbb4c', jpNameEn: 'Gem Pack Vol. 4 (CBB4C)', enSetName: 'Gem Pack Vol. 4', era: 'sv' },
+  { jpCode: 'cbb5c', jpNameEn: 'Gem Pack Vol. 5 (CBB5C)', enSetName: 'Gem Pack Vol. 5', era: 'sv' },
+  { jpCode: 'cbb6c', jpNameEn: 'Gem Pack Vol. 6 (CBB6C)', enSetName: 'Gem Pack Vol. 6', era: 'sv' },
+  { jpCode: 'cbb7c', jpNameEn: 'Gem Pack Vol. 7 (CBB7C)', enSetName: 'Gem Pack Vol. 7', era: 'sv' },
+  { jpCode: 'cs-p', jpNameEn: 'Simplified Chinese CS-P Promos', enSetName: 'Scarlet & Violet Promos', era: 'sv' },
+
   // --- Sword & Shield Era ---
   { jpCode: 's1W', jpNameEn: 'Sword', jpNameKana: 'ソード', enSetName: 'Sword & Shield', era: 'swsh' },
   { jpCode: 's1H', jpNameEn: 'Shield', jpNameKana: 'シールド', enSetName: 'Sword & Shield', era: 'swsh' },
@@ -67,6 +92,10 @@ export const SET_EQUIVALENTS: SetEquivalent[] = [
   { jpCode: 's12', jpNameEn: 'Paradigm Trigger', jpNameKana: 'パラダイムトリガー', enSetName: 'Silver Tempest', era: 'swsh' },
   { jpCode: 's12a', jpNameEn: 'VSTAR Universe', jpNameKana: 'VSTARユニバース', enSetName: 'Crown Zenith', era: 'swsh' },
   { jpCode: 's-p', jpNameEn: 'S-P Promotional Cards', jpNameKana: 'S-P プロモ', enSetName: 'Sword & Shield Promos', era: 'swsh' },
+  { jpCode: 'sc1a', jpNameEn: 'Sword & Shield (SC1a)', enSetName: 'Sword & Shield', era: 'swsh' },
+  { jpCode: 'sc1b', jpNameEn: 'Sword & Shield (SC1b)', enSetName: 'Sword & Shield', era: 'swsh' },
+  { jpCode: 'sc2a', jpNameEn: 'Rebel Clash (SC2a)', enSetName: 'Rebel Clash', era: 'swsh' },
+  { jpCode: 'sc2b', jpNameEn: 'Darkness Ablaze (SC2b)', enSetName: 'Darkness Ablaze', era: 'swsh' },
 
   // --- Sun & Moon Era ---
   { jpCode: 'sm1S', jpNameEn: 'Collection Sun', jpNameKana: 'コレクション サン', enSetName: 'Sun & Moon', era: 'sm' },

@@ -13,6 +13,7 @@ import {
 } from '@/lib/exclusiveRegistry';
 import { getKnownCardPrice } from '@/lib/knownPrices';
 import { getEnglishSetName } from '@/lib/setEquivalents';
+import { isKnownPokemonSpecies } from '@/lib/pokemonSpecies';
 
 // In-Memory cache for JustTCG to conserve limited user API query credits
 const justTcgCache = new Map<string, { timestamp: number; data: any }>();
@@ -747,6 +748,23 @@ export async function GET(request: Request) {
         const displayName = isZhExclusive ? `${cleanBase} [CH Exclusive]` : cleanBase;
         const englishSetName = getEnglishSetName(card.setName || card.set_name || card.id);
 
+        // Strict category enforcement: reject Pokemon cards if searching for Supporters or Trainers
+        if (category?.toLowerCase().includes('trainer') || trainerType?.toLowerCase().includes('supporter')) {
+          if (isKnownPokemonSpecies(card.name) || isKnownPokemonSpecies(cleanBase)) {
+            continue;
+          }
+        }
+
+        // Must have a valid image
+        if (!card.image && !card.imageUrl && !card.tcgplayerId) {
+          continue;
+        }
+
+        // Non-exclusive Chinese cards must have a valid non-zero market price
+        if (!isZhExclusive && (!card.price || card.price === '0' || card.price === '0.00' || card.price === 0)) {
+          continue;
+        }
+
         const NON_LATIN_ZH = /[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9faf\uac00-\ud7af]/;
         if (NON_LATIN_ZH.test(cleanBase) || NON_LATIN_ZH.test(englishSetName)) continue;
 
@@ -813,6 +831,12 @@ export async function GET(request: Request) {
       if (trainerType) {
         const tLower = trainerType.toLowerCase().trim();
         if (!curated.trainerType || !curated.trainerType.toLowerCase().includes(tLower)) {
+          continue;
+        }
+      }
+
+      if (category?.toLowerCase().includes('trainer') || trainerType?.toLowerCase().includes('supporter')) {
+        if (isKnownPokemonSpecies(curated.name)) {
           continue;
         }
       }
