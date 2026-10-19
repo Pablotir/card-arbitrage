@@ -29,6 +29,28 @@ const LANG_FLAGS: Record<CardLanguage, string> = {
   onepiece: '🏴‍☠️ OP'
 };
 
+const LANG_CODE_DISPLAY: Record<string, string> = {
+  en: 'EN',
+  ja: 'JP',
+  ko: 'KR',
+  zh: 'CH',
+  onepiece: 'OP'
+};
+
+/**
+ * Extracts the base character/trainer name from a card title for grouping.
+ * E.g. "Bianca's Devotion (Special Illustration Rare)" -> "bianca's devotion"
+ */
+function extractCharacterBaseName(name: string): string {
+  return (name || '')
+    .replace(/\s*\[(JP|JA|CH|ZH|KO|KR|EN)\s*Exclusive\]/gi, '')
+    .replace(/\s*\(.*?\)/g, '')
+    .replace(/-(ex|vmax|vstar|v|gx)\b/gi, '')
+    .replace(/\s*-\s*(Ultra Rare|Special Illustration Rare|SAR|SIR|SR|UR|Secret Rare|Art Rare|AR|IR)\b/gi, '')
+    .trim()
+    .toLowerCase();
+}
+
 interface EraSectionDef {
   id: string;
   title: string;
@@ -350,10 +372,36 @@ export function SearchResults({
 
     return ERA_SECTIONS
       .filter((sec) => map[sec.id] && map[sec.id].length > 0)
-      .map((sec) => ({
-        ...sec,
-        cards: map[sec.id]
-      }));
+      .map((sec) => {
+        const sortedCards = [...map[sec.id]].sort((a, b) => {
+          // 1. Exclusives pinned to the top of each era
+          const aEx = a.isExclusive ? 1 : 0;
+          const bEx = b.isExclusive ? 1 : 0;
+          if (aEx !== bEx) return bEx - aEx;
+
+          // 2. Group remaining cards by Set Name
+          const setA = (a.setName || a.set_name || '').toLowerCase().trim();
+          const setB = (b.setName || b.set_name || '').toLowerCase().trim();
+          if (setA !== setB) return setA.localeCompare(setB);
+
+          // 3. Within each set, group cards by Character / Trainer base name
+          const charA = extractCharacterBaseName(a.name || '');
+          const charB = extractCharacterBaseName(b.name || '');
+          if (charA !== charB) return charA.localeCompare(charB);
+
+          // 4. Order matching characters by card number / rarity
+          const numA = parseInt((a.number || a.id.split('-')[1] || '0').replace(/\D/g, ''), 10) || 0;
+          const numB = parseInt((b.number || b.id.split('-')[1] || '0').replace(/\D/g, ''), 10) || 0;
+          if (numA !== numB) return numA - numB;
+
+          return (a.name || '').localeCompare(b.name || '');
+        });
+
+        return {
+          ...sec,
+          cards: sortedCards
+        };
+      });
   }, [results]);
 
 
@@ -652,15 +700,15 @@ export function SearchResults({
                 const chosenLang = getChosenLangForCard(card);
                 const chosenPrice = getChosenPriceForCard(card, chosenLang);
                 const isExplicitlyChosen = explicitlySelectedIds.has(card.id);
-                const chosenLangDisplay = chosenLang === 'zh' ? 'CH' : chosenLang.toUpperCase();
+                const chosenLangDisplay = LANG_CODE_DISPLAY[chosenLang] || chosenLang.toUpperCase();
 
                 // Dynamic image sizing: scales with the slider
                 // At 210px min-width → imgW≈90px; at 420px → imgW≈180px
                 const isCompact = density === 'compact';
+                const isLarge = cardMinSize >= 330;
+                const isXLarge = cardMinSize >= 380;
                 const imgW = Math.round(cardMinSize * (isCompact ? 0.38 : 0.42));
                 const imgH = Math.round(imgW * 1.4); // standard card aspect ratio
-
-                const isLarge = cardMinSize >= 330;
 
                 return (
                   <div
@@ -701,11 +749,11 @@ export function SearchResults({
                             )}
                             {card.isExclusive ? (
                               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800/80 truncate">
-                                {LANG_FLAGS[cardLang] || cardLang.toUpperCase()} Exclusive
+                                {LANG_CODE_DISPLAY[cardLang] || cardLang.toUpperCase()} Exclusive
                               </span>
                             ) : cardLang !== 'en' ? (
                               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 truncate">
-                                {LANG_FLAGS[cardLang] || cardLang.toUpperCase()}
+                                {LANG_CODE_DISPLAY[cardLang] || cardLang.toUpperCase()}
                               </span>
                             ) : null}
 
@@ -716,29 +764,29 @@ export function SearchResults({
                             )}
                           </div>
 
-                          <h4 className={`font-bold text-gray-900 dark:text-gray-100 ${isLarge ? 'text-base' : 'text-sm'} leading-tight truncate mt-1 block`} title={card.name}>
+                          <h4 className={`font-bold text-gray-900 dark:text-gray-100 ${isXLarge ? 'text-lg font-black' : isLarge ? 'text-base font-extrabold' : 'text-sm font-bold'} leading-tight truncate mt-1 block`} title={card.name}>
                             {card.name}
                           </h4>
 
-                          <span className={`${isLarge ? 'text-sm' : 'text-xs'} text-blue-600 dark:text-blue-400 font-medium truncate mt-0.5 block`} title={setName}>
+                          <span className={`${isXLarge ? 'text-sm font-semibold' : isLarge ? 'text-xs font-semibold' : 'text-xs font-medium'} text-blue-600 dark:text-blue-400 truncate mt-0.5 block`} title={setName}>
                             {setName}
                           </span>
 
                           {card.rarity && card.rarity.toLowerCase() !== 'none' && (
-                            <span className={`inline-block mt-1 ${isLarge ? 'text-[11px]' : 'text-[10px]'} font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-200 dark:border-purple-800/60 max-w-full truncate`} title={card.rarity}>
+                            <span className={`inline-block mt-1 ${isXLarge ? 'text-xs' : isLarge ? 'text-[11px]' : 'text-[10px]'} font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-200 dark:border-purple-800/60 max-w-full truncate`} title={card.rarity}>
                               {card.rarity}
                             </span>
                           )}
 
                           <div className="mt-auto pt-1 flex items-baseline gap-1.5 flex-wrap">
-                            <span className={`${isLarge ? 'text-xs' : 'text-[11px]'} text-gray-400 shrink-0`}>
-                              {cardLang === 'ja' ? 'JP Mkt:' : cardLang === 'zh' ? 'CH Mkt:' : cardLang === 'ko' ? 'KO Mkt:' : 'EN Mkt:'}
+                            <span className={`${isXLarge ? 'text-sm font-medium' : isLarge ? 'text-xs font-medium' : 'text-[11px]'} text-gray-400 shrink-0`}>
+                              {`${LANG_CODE_DISPLAY[cardLang] || 'EN'} Mkt:`}
                             </span>
-                            <span className={`${isLarge ? 'text-base' : 'text-sm'} font-extrabold text-gray-900 dark:text-gray-100 truncate`}>
+                            <span className={`${isXLarge ? 'text-xl font-black' : isLarge ? 'text-lg font-black' : 'text-sm font-extrabold'} text-gray-900 dark:text-gray-100 truncate`}>
                               {card.price ? formatCurrency(card.price) : 'N/A'}
                             </span>
                             {card.pricingSource && (
-                              <span className={`text-[9px] font-semibold px-1 rounded truncate ${
+                              <span className={`${isXLarge ? 'text-[11px]' : 'text-[9px]'} font-semibold px-1 rounded truncate ${
                                 card.pricingSource === 'TCGPlayer'
                                   ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/60'
                                   : 'bg-gray-100 dark:bg-gray-800 text-gray-500'
@@ -754,10 +802,10 @@ export function SearchResults({
                       {hasLanguages && (
                         <div className="mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-700/60 space-y-1">
                           <div className="flex items-center justify-between text-[11px]">
-                            <span className="font-bold text-gray-500 dark:text-gray-400">Pick Language:</span>
+                            <span className={`${isXLarge ? 'text-xs font-bold' : isLarge ? 'text-xs font-bold' : 'text-[11px] font-bold'} text-gray-500 dark:text-gray-400`}>Pick Language:</span>
                             {hasSavings && (
-                              <span className="font-black text-emerald-600 dark:text-emerald-400 text-[10px] bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-200 dark:border-emerald-800/50 truncate">
-                                Save {card.savingsVsEnglish}% on {card.cheapestLanguage === 'zh' ? 'CH' : (card.cheapestLanguage || 'alt').toUpperCase()}
+                              <span className={`${isXLarge ? 'text-xs font-black px-2 py-0.5' : isLarge ? 'text-[11px] font-black px-1.5 py-0.5' : 'text-[10px] font-black px-1.5 py-0.2'} text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 rounded border border-emerald-200 dark:border-emerald-800/50 truncate`}>
+                                Save {card.savingsVsEnglish}% on {LANG_CODE_DISPLAY[card.cheapestLanguage || 'alt'] || 'ALT'}
                               </span>
                             )}
                           </div>
@@ -773,17 +821,17 @@ export function SearchResults({
                                   key={langKey}
                                   type="button"
                                   onClick={() => handleSelectCardLang(card.id, langKey as CardLanguage)}
-                                  className={`px-1.5 py-1 rounded-lg border flex items-center justify-between text-[10px] transition-all cursor-pointer min-w-0 ${
+                                  className={`${isXLarge ? 'px-2.5 py-1.5 text-xs' : isLarge ? 'px-2 py-1 text-[11px]' : 'px-1.5 py-1 text-[10px]'} rounded-lg border flex items-center justify-between transition-all cursor-pointer min-w-0 ${
                                     isTileExplicit
                                       ? 'bg-linear-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 border-indigo-500 dark:border-indigo-400 text-indigo-900 dark:text-indigo-200 ring-2 ring-indigo-500/90 shadow-md shadow-indigo-500/30 scale-[1.02] font-black'
                                       : isTileSelected
                                       ? 'bg-emerald-50 dark:bg-emerald-950/70 border-emerald-400 dark:border-emerald-600 text-emerald-900 dark:text-emerald-200 ring-1 ring-emerald-400 shadow-2xs font-bold'
                                       : 'bg-gray-50 dark:bg-gray-900/60 border-gray-100 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800/80'
                                   }`}
-                                  title={`Click to select ${LANG_FLAGS[langKey as CardLanguage] || langKey.toUpperCase()} for Quick Add`}
+                                  title={`Click to select ${LANG_FLAGS[langKey as CardLanguage] || LANG_CODE_DISPLAY[langKey] || langKey.toUpperCase()} for Quick Add`}
                                 >
                                   <span className="flex items-center gap-0.5 min-w-0 truncate">
-                                    <span className="truncate">{LANG_FLAGS[langKey as CardLanguage] || langKey.toUpperCase()}</span>
+                                    <span className="truncate">{LANG_FLAGS[langKey as CardLanguage] || LANG_CODE_DISPLAY[langKey] || langKey.toUpperCase()}</span>
                                     {isTileExplicit && (
                                       <span className="text-[8px] bg-indigo-600 text-white font-black px-0.5 rounded-xs">
                                         ✓
@@ -793,7 +841,7 @@ export function SearchResults({
                                       <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold">★</span>
                                     )}
                                   </span>
-                                  <span className="font-semibold shrink-0 ml-1">{formatCurrency(langInfo.price)}</span>
+                                  <span className={`${isXLarge ? 'font-black text-xs' : isLarge ? 'font-extrabold text-[11px]' : 'font-semibold text-[10px]'} shrink-0 ml-1`}>{formatCurrency(langInfo.price)}</span>
                                 </button>
                               );
                             })}
@@ -812,7 +860,7 @@ export function SearchResults({
                             onAddOptimizedToList(card, chosenLang);
                           }
                         }}
-                        className={`w-full flex items-center justify-center gap-1.5 text-xs font-bold py-1.5 px-2 rounded-xl transition cursor-pointer truncate ${
+                        className={`w-full flex items-center justify-center gap-1.5 ${isXLarge ? 'text-sm font-black py-2.5 px-3' : isLarge ? 'text-xs font-bold py-2 px-2' : 'text-xs font-bold py-1.5 px-2'} rounded-xl transition cursor-pointer truncate ${
                           isExplicitlyChosen
                             ? 'bg-linear-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-700 hover:to-purple-700 text-white ring-2 ring-indigo-400/50 shadow-md shadow-indigo-500/30'
                             : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs'
@@ -836,7 +884,7 @@ export function SearchResults({
                               onToggleOwned(card);
                             }
                           }}
-                          className={`flex items-center justify-center gap-1 py-1.5 px-1 rounded-xl text-xs font-bold transition border cursor-pointer min-w-0 ${
+                          className={`flex items-center justify-center gap-1 ${isXLarge ? 'py-2.5 text-xs font-bold' : isLarge ? 'py-2 text-xs font-bold' : 'py-1.5 text-xs font-semibold'} px-1 rounded-xl transition border cursor-pointer min-w-0 ${
                             owned
                               ? 'bg-emerald-600 text-white border-emerald-700 shadow-2xs hover:bg-emerald-700'
                               : 'bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60'
@@ -855,7 +903,7 @@ export function SearchResults({
                             inWishlist
                               ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed border border-transparent'
                               : 'bg-gray-900 dark:bg-gray-700 hover:bg-gray-800 dark:hover:bg-gray-600 text-white shadow-2xs cursor-pointer'
-                          } text-xs font-semibold py-1.5 px-1 rounded-xl transition min-w-0`}
+                          } ${isXLarge ? 'py-2.5 text-xs font-bold' : isLarge ? 'py-2 text-xs font-bold' : 'py-1.5 text-xs font-semibold'} px-1 rounded-xl transition min-w-0`}
                         >
                           {inWishlist ? <Check className="w-3 h-3 shrink-0" /> : <Bookmark className="w-3 h-3 shrink-0" />}
                           <span className="truncate">{inWishlist ? 'Wishlisted' : 'Wishlist'}</span>
@@ -864,7 +912,7 @@ export function SearchResults({
                         <button
                           type="button"
                           onClick={() => onOpenSniper(card)}
-                          className="flex items-center justify-center gap-1 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 text-xs font-bold py-1.5 px-1 rounded-xl transition cursor-pointer min-w-0"
+                          className={`flex items-center justify-center gap-1 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 ${isXLarge ? 'py-2.5 text-xs font-bold' : isLarge ? 'py-2 text-xs font-bold' : 'py-1.5 text-xs font-semibold'} px-1 rounded-xl transition cursor-pointer min-w-0`}
                         >
                           <Target className="w-3 h-3 text-purple-600 dark:text-purple-400 shrink-0" />
                           <span className="truncate">Snipe</span>

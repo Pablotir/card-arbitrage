@@ -41,7 +41,7 @@ export function Header({
 }: HeaderProps) {
   return (
     <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-30 shadow-xs transition-colors">
-      <div className="max-w-[1920px] w-full mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div className="max-w-[2560px] w-full mx-auto px-2 sm:px-4 lg:px-6 h-16 flex items-center justify-between">
         {/* Brand / Logo */}
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-blue-600 dark:bg-blue-500 flex items-center justify-center text-white font-black text-lg shadow-sm">
@@ -114,7 +114,7 @@ export function Header({
       </div>
 
       {/* NAVIGATION TABS */}
-      <div className="max-w-7xl mx-auto px-4 flex gap-1 sm:gap-2 overflow-x-auto border-t border-gray-100 dark:border-gray-800/80 pt-1 pb-0 no-scrollbar">
+      <div className="max-w-[2560px] w-full mx-auto px-2 sm:px-4 lg:px-6 flex gap-1 sm:gap-2 overflow-x-auto border-t border-gray-100 dark:border-gray-800/80 pt-1 pb-0 no-scrollbar">
         <button
           onClick={() => setActiveTab('search')}
           className={`px-3.5 py-2.5 text-xs sm:text-sm font-semibold transition border-b-2 flex items-center gap-2 whitespace-nowrap ${

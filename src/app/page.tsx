@@ -236,8 +236,9 @@ export default function Home() {
       return;
     }
 
-    // Base cache key: cache by game, category, rarities, eras, specialTypes, and search text for 5-day local database
-    const baseCacheKey = `${tcg}_${(filters.categories || []).slice().sort().join('_') || 'all'}_${(filters.rarities || []).slice().sort().join('_') || 'all'}_${(filters.eras || []).slice().sort().join('_') || 'all'}_${(filters.specialTypes || []).slice().sort().join('_') || 'all'}_${query.trim().toLowerCase() || 'all'}`;
+    // Base cache key: cache by game, languages, category, rarities, eras, specialTypes, and search text for 5-day local database
+    const langsKey = (filters.languages || []).slice().sort().join('_') || 'all';
+    const baseCacheKey = `${tcg}_${langsKey}_${(filters.categories || []).slice().sort().join('_') || 'all'}_${(filters.rarities || []).slice().sort().join('_') || 'all'}_${(filters.eras || []).slice().sort().join('_') || 'all'}_${(filters.specialTypes || []).slice().sort().join('_') || 'all'}_${query.trim().toLowerCase() || 'all'}`;
 
     if (!forceRefresh) {
       const cached = getCachedCatalog(baseCacheKey);
@@ -249,7 +250,7 @@ export default function Home() {
       }
     }
 
-    const currentSig = `${query.trim()}_${tcg}_${(filters.categories || []).sort().join(',')}_${(filters.rarities || []).sort().join(',')}_${(filters.eras || []).sort().join(',')}_${(filters.specialTypes || []).sort().join(',')}_${forceRefresh ? Date.now() : ''}`;
+    const currentSig = `${query.trim()}_${tcg}_${(filters.languages || []).sort().join(',')}_${(filters.categories || []).sort().join(',')}_${(filters.rarities || []).sort().join(',')}_${(filters.eras || []).sort().join(',')}_${(filters.specialTypes || []).sort().join(',')}_${forceRefresh ? Date.now() : ''}`;
     lastQuerySignatureRef.current = currentSig;
 
     setIsSearching(true);
@@ -440,13 +441,14 @@ export default function Home() {
       return;
     }
 
-    const currentBaseSig = `${query.trim()}_${tcg}_${(filters.categories || []).sort().join(',')}_${(filters.rarities || []).sort().join(',')}_${(filters.eras || []).sort().join(',')}_${(filters.specialTypes || []).sort().join(',')}`;
+    const currentBaseSig = `${query.trim()}_${tcg}_${(filters.languages || []).sort().join(',')}_${(filters.categories || []).sort().join(',')}_${(filters.rarities || []).sort().join(',')}_${(filters.eras || []).sort().join(',')}_${(filters.specialTypes || []).sort().join(',')}`;
     if (currentBaseSig === lastQuerySignatureRef.current && searchResults.length > 0) {
       return;
     }
 
     const hasIntent =
       Boolean(query.trim()) ||
+      (filters.languages && filters.languages.length > 0) ||
       (filters.categories && filters.categories.length > 0) ||
       (filters.rarities && filters.rarities.length > 0) ||
       (filters.eras && filters.eras.length > 0) ||
@@ -461,7 +463,7 @@ export default function Home() {
     return () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     };
-  }, [query, tcg, filters.categories, filters.rarities, filters.eras, filters.specialTypes]);
+  }, [query, tcg, filters.languages, filters.categories, filters.rarities, filters.eras, filters.specialTypes]);
 
   const handleClearFilters = () => {
     setFilters({
@@ -581,13 +583,18 @@ export default function Home() {
     }
 
     // Filter by Language multi-select (OR / UNION)
-    if (filters.languages?.length > 0) {
+    if (filters.languages && filters.languages.length > 0) {
       list = list.filter((card) => {
         const lang = card.language || 'en';
+        // 1. Direct language match
         if (filters.languages.includes(lang)) return true;
-        if (card.languages) {
-          return filters.languages.some((l) => Boolean(card.languages?.[l]));
+
+        // 2. Verified language exclusives matching selected languages
+        if (card.isExclusive) {
+          if (filters.languages.includes('ja') && isTrueJapaneseExclusive(card)) return true;
+          if (filters.languages.includes('zh') && isTrueChineseExclusive(card)) return true;
         }
+
         return false;
       });
     }
@@ -900,7 +907,7 @@ export default function Home() {
       />
 
       {/* MAIN CONTAINER */}
-      <main className="max-w-[1920px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 space-y-6">
+      <main className="max-w-[2560px] w-full mx-auto px-2 sm:px-4 lg:px-6 py-4 flex-1 space-y-5">
         {serverError && (
           <div className="flex items-center justify-between gap-3 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 rounded-2xl px-5 py-3 text-xs font-semibold">
             <span>⚠️ {serverError}</span>

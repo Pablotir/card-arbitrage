@@ -113,6 +113,13 @@ export const TRUE_ZH_EXCLUSIVE_IDS = new Set<string>([
   'gem-ponyta',     // Exclusive Ponyta illustration
   'gem-arcanine-ex',// Exclusive Arcanine ex alternate art
   'gem-pikachu',    // Exclusive Captain Pikachu illustration
+
+  // Simplified Chinese Starry Crystal (CSV9C) Exclusive Full Art Trainers
+  'csv9c-257',      // Lisia's Appeal SAR Exclusive Alternate Artwork (257/208)
+  'csv9c-241',      // Lisia's Appeal SR (241/208)
+  '257-csv9c',
+  '241-csv9c',
+  'cs-p-lisia',
 ]);
 
 // ==========================================
@@ -235,6 +242,11 @@ export function isTrueChineseExclusive(card: {
   // 7. Special Chinese SV-P Promos (001-004, 019, 033)
   if (idNorm.includes('sv-p') || idNorm.includes('svp')) {
     if (['001', '002', '003', '004', '019', '033'].includes(localId)) return true;
+  }
+
+  // 8. Simplified Chinese Lisia's Appeal Exclusive (Starry Crystal CSV9C 257/208 SAR & 241/208 SR)
+  if (nameLower.includes('lisia') && (nameLower.includes('appeal') || setLower.includes('starry') || idNorm.includes('csv9c'))) {
+    return true;
   }
 
   return false;
@@ -364,7 +376,7 @@ export function getCardEra(cardId?: string, setName?: string): string {
 
   // Fallbacks by set keywords
   if (set.includes('chaos rising') || set.includes('mega evolution') || id.startsWith('me')) return 'me';
-  if (set.includes('scarlet') || set.includes('violet') || set.includes('151') || set.includes('paldean') || set.includes('paradox') || set.includes('temporal') || set.includes('twilight') || set.includes('stellar') || set.includes('surging') || set.includes('prismatic')) return 'sv';
+  if (set.includes('scarlet') || set.includes('violet') || set.includes('151') || set.includes('paldean') || set.includes('paradox') || set.includes('temporal') || set.includes('twilight') || set.includes('stellar') || set.includes('surging') || set.includes('prismatic') || set.includes('starry') || id.includes('csv')) return 'sv';
   if (set.includes('sword') || set.includes('shield') || set.includes('vivid') || set.includes('darkness') || set.includes('battle styles') || set.includes('chilling') || set.includes('evolving') || set.includes('fusion') || set.includes('brilliant') || set.includes('astral') || set.includes('lost origin') || set.includes('silver tempest') || set.includes('crown zenith')) return 'swsh';
   if (set.includes('sun') || set.includes('moon') || set.includes('guardians') || set.includes('burning shadows') || set.includes('crimson') || set.includes('ultra prism') || set.includes('forbidden light') || set.includes('celestial') || set.includes('dragon majesty') || set.includes('lost thunder') || set.includes('team up') || set.includes('unbroken') || set.includes('unified minds') || set.includes('hidden fates') || set.includes('cosmic eclipse') || set.includes('tag all stars')) return 'sm';
   if (set.includes('flashfire') || set.includes('furious fists') || set.includes('phantom forces') || set.includes('primal clash') || set.includes('roaring skies') || set.includes('ancient origins') || set.includes('breakthrough') || set.includes('breakpoint') || set.includes('generations') || set.includes('fates collide') || set.includes('steam siege') || set.includes('evolutions')) return 'xy';
@@ -1266,6 +1278,36 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     imageUrl: 'https://images.pokemontcg.io/swshp/SWSH146_hires.png',
     price: '220.00',
     rarity: 'Promo',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'zh',
+    game: 'pokemon',
+    isExclusive: true,
+    pricingSource: 'Asian Comps'
+  },
+  {
+    id: 'csv9c-257',
+    name: "Lisia's Appeal (Starry Crystal CSV9C SAR 257/208) [CH Exclusive]",
+    setName: 'Starry Crystal (CSV9C)',
+    image: 'https://images.pokemontcg.io/sv7/164_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/sv7/164_hires.png',
+    price: '240.00',
+    rarity: 'Special Illustration Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'zh',
+    game: 'pokemon',
+    isExclusive: true,
+    pricingSource: 'Asian Comps'
+  },
+  {
+    id: 'csv9c-241',
+    name: "Lisia's Appeal (Starry Crystal CSV9C SR 241/208) [CH Exclusive]",
+    setName: 'Starry Crystal (CSV9C)',
+    image: 'https://images.pokemontcg.io/sv7/164_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/sv7/164_hires.png',
+    price: '85.00',
+    rarity: 'Ultra Rare',
     category: 'Trainer',
     trainerType: 'Supporter',
     language: 'zh',
