@@ -227,21 +227,34 @@ export async function searchTcgdexCards(
             cardDetailCache.set(cacheKey, d);
           }
 
-          // Subtype check (e.g. Supporter, Item, Stadium, Tool)
+          // Subtype check (e.g. Supporter, Item, Stadium, Tool) with Asian language normalization
           if (trainerType) {
-            if (!d.trainerType) return null;
+            const rawTt = (d.trainerType || '').toLowerCase().trim();
+            const normTt = rawTt.includes('サポート') || rawTt.includes('支援者') || rawTt.includes('서포트') || rawTt === 'supporter'
+              ? 'supporter'
+              : rawTt.includes('グッズ') || rawTt.includes('物品') || rawTt.includes('아이템') || rawTt === 'item'
+              ? 'item'
+              : rawTt.includes('スタジアム') || rawTt.includes('競技場') || rawTt.includes('스타디움') || rawTt === 'stadium'
+              ? 'stadium'
+              : rawTt.includes('どうぐ') || rawTt.includes('道具') || rawTt.includes('도구') || rawTt === 'tool'
+              ? 'tool'
+              : rawTt;
+
             const types = trainerType.toLowerCase().split(',').map((t) => t.trim());
-            if (!types.includes(d.trainerType.toLowerCase())) {
+            if (!types.includes(normTt)) {
               return null;
             }
           }
 
-          // Category check
+          // Category check with Asian language normalization
           if (category) {
             const catLower = category.toLowerCase().trim();
-            const dCatLower = (d.category || '').toLowerCase().trim();
-            if (catLower === 'trainer' && dCatLower === 'pokemon') return null;
-            if (catLower === 'pokemon' && dCatLower === 'trainer') return null;
+            const rawCat = (d.category || '').toLowerCase().trim();
+            const isTrainer = rawCat.includes('trainer') || rawCat.includes('トレーナー') || rawCat.includes('訓練家') || rawCat.includes('트레이너');
+            const isPokemon = rawCat.includes('pokemon') || rawCat.includes('ポケモン') || rawCat.includes('寶可夢') || rawCat.includes('포켓몬');
+
+            if (catLower === 'trainer' && isPokemon) return null;
+            if (catLower === 'pokemon' && isTrainer) return null;
           }
 
           // Strict validation: If looking for Supporters/Trainers, strictly reject Pokemon cards

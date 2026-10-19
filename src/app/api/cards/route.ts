@@ -641,9 +641,8 @@ export async function GET(request: Request) {
       } else {
         const isTrueExclusive = isTrueJapaneseExclusive(card);
 
-        // Strict Deduplication Rule: If searching in English (wantEn=true),
-        // NEVER add regular Japanese cards as standalone entries. Only true exclusives!
-        if (wantEn && !isTrueExclusive) {
+        // Strict Deduplication Rule: NEVER add regular Japanese cards as standalone entries. Only true exclusives!
+        if (!isTrueExclusive) {
           continue;
         }
 
@@ -738,8 +737,8 @@ export async function GET(request: Request) {
           }
         }
       } else {
-        // If English is requested, only add true Chinese exclusives as standalone
-        if (wantEn && !isZhExclusive) {
+        // Strict Deduplication Rule: NEVER add regular Chinese cards as standalone entries. Only true exclusives!
+        if (!isZhExclusive) {
           continue;
         }
 

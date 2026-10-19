@@ -38,6 +38,10 @@ export const TRUE_JP_EXCLUSIVE_IDS = new Set<string>([
   'sm12a-199', // Clay Full Art (199/173)
   'sm12a-201', // Red's Challenge Alt Art Full Art (201/173)
 
+  // The Best of XY (SM2L) Exclusive Full Arts
+  'sm2l-182', // Blacksmith Full Art (182/171)
+  'sm2l-177', // Karen Full Art (177/171)
+
   // Japan Post Stamp Box Promos
   's-p-226', // Cramorant Beauty Looking Back (226/S-P)
   's-p-227', // Pikachu Moon Goose (227/S-P)
@@ -199,6 +203,13 @@ export function isTrueJapaneseExclusive(card: {
     if (nameLower.includes('misty & lorelei') || nameLower.includes('カスミ&カンナ')) return true;
   }
 
+  // 3b. The Best of XY (SM2L) Exclusive Full Arts (Blacksmith 182, Karen 177)
+  if (idNorm.includes('sm2l') || setIdNorm.includes('sm2l') || setLower.includes('best of xy') || setLower.includes('ベストオブxy')) {
+    if (['182', '177'].includes(localId)) return true;
+    if (nameLower.includes('blacksmith') || nameLower.includes('鍛冶屋')) return true;
+    if (nameLower.includes('karen') || nameLower.includes('カリン')) return true;
+  }
+
   // 4. Extra Battle Day promo numbers (395-399, 401, 064, 100)
   if (idNorm.includes('sm-p') || idNorm.includes('smp')) {
     if (['395', '396', '397', '398', '399', '401', '064', '100', '286', '287', '288', '289', '290', '280', '281'].includes(localId)) return true;
@@ -342,21 +353,21 @@ export const POKEMON_ERAS: EraDefinition[] = [
     name: 'Sword & Shield (SWSH)',
     shortName: 'Sword & Shield',
     years: '2020–2023',
-    prefixes: ['swsh', 's1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9', 's10', 's11', 's12', 's-p', 'sc1', 'sc2', 'cs-p']
+    prefixes: ['swsh', 'swsh45', 's1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9', 's10', 's11', 's12', 's-p', 'sc1', 'sc2']
   },
   {
     id: 'sm',
     name: 'Sun & Moon (SM)',
     shortName: 'Sun & Moon',
     years: '2017–2019',
-    prefixes: ['sm', 'sma', 'sm-p', 'smp', 'ac1', 'ac2']
+    prefixes: ['sm', 'sma', 'sm115', 'sm12a', 'sm-p', 'smp', 'ac1', 'ac2']
   },
   {
     id: 'xy',
     name: 'XY Series (XY)',
     shortName: 'XY',
     years: '2013–2016',
-    prefixes: ['xy', 'xy-p', 'xyp']
+    prefixes: ['xy', 'sm2l', 'xy171', 'xy-p', 'xyp']
   },
   {
     id: 'bw',
@@ -416,24 +427,51 @@ export function getCardEra(cardId?: string, setName?: string): string {
   const id = (cardId || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
   const set = (setName || '').toLowerCase();
 
+  // 1. High priority explicit overrides for cross-generational sets/promos
+  if (id.includes('friends-alola') || id.includes('alolan-friends') || set.includes('friends in alola') || set.includes('alolan friends')) {
+    return 'sm';
+  }
+  if (set.includes('hidden fates') || id.startsWith('sma') || set.includes('sm115')) {
+    return 'sm';
+  }
+  if (set.includes('shining fates') || id.startsWith('swsh45')) {
+    return 'swsh';
+  }
+  if (id.includes('friends-galar') || set.includes('friends in galar')) {
+    return 'swsh';
+  }
+  if (set.includes('tag all stars') || id.startsWith('sm12a')) {
+    return 'sm';
+  }
+  if (set.includes('the best of xy') || id.startsWith('sm2l') || id.startsWith('xy171')) {
+    return 'xy';
+  }
+
+  // 2. Set prefix match at start of card ID (e.g. 'sv01' from 'sv01-100', 'swsh12' from 'swsh12-TG23')
+  const setPart = id.split('-')[0] || '';
+
   for (const era of POKEMON_ERAS) {
-    if (era.prefixes.some(p => id.startsWith(p) || id.includes(`-${p}`) || set.includes(era.shortName.toLowerCase()))) {
+    if (
+      era.prefixes.some(p => setPart === p || setPart.startsWith(p)) ||
+      set.includes(era.shortName.toLowerCase()) ||
+      set.includes(era.name.toLowerCase())
+    ) {
       return era.id;
     }
   }
 
-  // Fallbacks by set keywords
+  // 3. Fallbacks by set keywords
   if (set.includes('chaos rising') || set.includes('mega evolution') || id.startsWith('me')) return 'me';
-  if (set.includes('scarlet') || set.includes('violet') || set.includes('151') || set.includes('paldean') || set.includes('paradox') || set.includes('temporal') || set.includes('twilight') || set.includes('stellar') || set.includes('surging') || set.includes('prismatic') || set.includes('starry') || set.includes('gem pack') || id.includes('csv') || id.includes('cbb') || id.includes('151c')) return 'sv';
-  if (set.includes('sword') || set.includes('shield') || set.includes('vivid') || set.includes('darkness') || set.includes('battle styles') || set.includes('chilling') || set.includes('evolving') || set.includes('fusion') || set.includes('brilliant') || set.includes('astral') || set.includes('lost origin') || set.includes('silver tempest') || set.includes('crown zenith') || id.startsWith('sc1') || id.startsWith('sc2') || id.startsWith('cs-p')) return 'swsh';
-  if (set.includes('sun') || set.includes('moon') || set.includes('guardians') || set.includes('burning shadows') || set.includes('crimson') || set.includes('ultra prism') || set.includes('forbidden light') || set.includes('celestial') || set.includes('dragon majesty') || set.includes('lost thunder') || set.includes('team up') || set.includes('unbroken') || set.includes('unified minds') || set.includes('hidden fates') || set.includes('cosmic eclipse') || set.includes('tag all stars')) return 'sm';
-  if (set.includes('flashfire') || set.includes('furious fists') || set.includes('phantom forces') || set.includes('primal clash') || set.includes('roaring skies') || set.includes('ancient origins') || set.includes('breakthrough') || set.includes('breakpoint') || set.includes('generations') || set.includes('fates collide') || set.includes('steam siege') || set.includes('evolutions')) return 'xy';
-  if (set.includes('noble victories') || set.includes('next destinies') || set.includes('dark explorers') || set.includes('dragons exalted') || set.includes('boundaries crossed') || set.includes('plasma')) return 'bw';
-  if (set.includes('heartgold') || set.includes('soulsilver') || set.includes('triumphant') || set.includes('undaunted') || set.includes('unleashed') || set.includes('call of legends')) return 'hgss';
-  if (set.includes('diamond') || set.includes('pearl') || set.includes('platinum') || set.includes('mysterious treasures') || set.includes('secret wonders') || set.includes('great encounters') || set.includes('majestic dawn') || set.includes('legends awakened') || set.includes('stormfront') || set.includes('rising rivals') || set.includes('supreme victors') || set.includes('arceus')) return 'dp';
-  if (set.includes('ruby') || set.includes('sapphire') || set.includes('sandstorm') || set.includes('dragon') || set.includes('magma') || set.includes('aqua') || set.includes('hidden legends') || set.includes('firered') || set.includes('leafgreen') || set.includes('deoxys') || set.includes('emerald') || set.includes('unseen forces') || set.includes('delta species') || set.includes('legend maker') || set.includes('holon') || set.includes('crystal guardians') || set.includes('power keepers')) return 'ex';
-  if (set.includes('expedition') || set.includes('aquapolis') || set.includes('skyridge')) return 'ecard';
-  if (set.includes('genesis') || set.includes('discovery') || set.includes('revelation') || set.includes('destiny')) return 'neo';
+  if (set.includes('scarlet') || set.includes('violet') || set.includes('151') || set.includes('paldean') || set.includes('paradox') || set.includes('temporal') || set.includes('twilight') || set.includes('stellar') || set.includes('surging') || set.includes('prismatic') || set.includes('starry') || set.includes('gem pack') || set.includes('black bolt') || set.includes('white flare') || id.includes('csv') || id.includes('cbb') || id.includes('151c')) return 'sv';
+  if (set.includes('sword') || set.includes('shield') || set.includes('vivid') || set.includes('darkness') || set.includes('battle styles') || set.includes('chilling') || set.includes('evolving') || set.includes('fusion') || set.includes('brilliant') || set.includes('astral') || set.includes('lost origin') || set.includes('silver tempest') || set.includes('crown zenith') || id.startsWith('sc1') || id.startsWith('sc2')) return 'swsh';
+  if (set.includes('sun') || set.includes('moon') || set.includes('guardians') || set.includes('burning shadows') || set.includes('crimson') || set.includes('ultra prism') || set.includes('forbidden light') || set.includes('celestial') || set.includes('dragon majesty') || set.includes('lost thunder') || set.includes('team up') || set.includes('unbroken') || set.includes('unified minds') || set.includes('cosmic eclipse')) return 'sm';
+  if (set.includes('flashfire') || set.includes('furious fists') || set.includes('phantom forces') || set.includes('primal clash') || set.includes('roaring skies') || set.includes('ancient origins') || set.includes('breakthrough') || set.includes('breakpoint') || set.includes('generations') || set.includes('fates collide') || set.includes('steam siege') || set.includes('evolutions') || id.startsWith('xy')) return 'xy';
+  if (set.includes('noble victories') || set.includes('next destinies') || set.includes('dark explorers') || set.includes('dragons exalted') || set.includes('boundaries crossed') || set.includes('plasma') || id.startsWith('bw')) return 'bw';
+  if (set.includes('heartgold') || set.includes('soulsilver') || set.includes('triumphant') || set.includes('undaunted') || set.includes('unleashed') || set.includes('call of legends') || id.startsWith('hgss')) return 'hgss';
+  if (set.includes('diamond') || set.includes('pearl') || set.includes('platinum') || set.includes('mysterious treasures') || set.includes('secret wonders') || set.includes('great encounters') || set.includes('majestic dawn') || set.includes('legends awakened') || set.includes('stormfront') || set.includes('rising rivals') || set.includes('supreme victors') || set.includes('arceus') || id.startsWith('dp') || id.startsWith('pl')) return 'dp';
+  if (set.includes('ruby') || set.includes('sapphire') || set.includes('sandstorm') || set.includes('dragon') || set.includes('magma') || set.includes('aqua') || set.includes('hidden legends') || set.includes('firered') || set.includes('leafgreen') || set.includes('deoxys') || set.includes('emerald') || set.includes('unseen forces') || set.includes('delta species') || set.includes('legend maker') || set.includes('holon') || set.includes('crystal guardians') || set.includes('power keepers') || id.startsWith('ex')) return 'ex';
+  if (set.includes('expedition') || set.includes('aquapolis') || set.includes('skyridge') || id.startsWith('e1') || id.startsWith('e2')) return 'ecard';
+  if (set.includes('genesis') || set.includes('discovery') || set.includes('revelation') || set.includes('destiny') || id.startsWith('neo')) return 'neo';
   if (set.includes('base') || set.includes('jungle') || set.includes('fossil') || set.includes('rocket') || set.includes('gym')) return 'vintage';
 
   return 'other';
@@ -1097,8 +1135,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'sm12a-189',
     name: 'Will (Tag All Stars Full Art 189/173) [JP Exclusive]',
     setName: 'Tag All Stars (SM12a)',
-    image: 'https://assets.tcgdex.net/ja/SM/sm12a/189/high.webp',
-    imageUrl: 'https://assets.tcgdex.net/ja/SM/sm12a/189/high.webp',
+    image: 'https://assets.tcgdex.net/ja/SM/SM12a/189/high.webp',
+    imageUrl: 'https://assets.tcgdex.net/ja/SM/SM12a/189/high.webp',
     price: '38.00',
     rarity: 'Ultra Rare',
     category: 'Trainer',
@@ -1112,8 +1150,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'sm12a-191',
     name: 'Misty & Lorelei (Tag All Stars Full Art 191/173) [JP Exclusive]',
     setName: 'Tag All Stars (SM12a)',
-    image: 'https://assets.tcgdex.net/ja/SM/sm12a/191/high.webp',
-    imageUrl: 'https://assets.tcgdex.net/ja/SM/sm12a/191/high.webp',
+    image: 'https://assets.tcgdex.net/ja/SM/SM12a/191/high.webp',
+    imageUrl: 'https://assets.tcgdex.net/ja/SM/SM12a/191/high.webp',
     price: '115.00',
     rarity: 'Ultra Rare',
     category: 'Trainer',
@@ -1127,8 +1165,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'sm12a-192',
     name: 'Sightseer (Tag All Stars Full Art 192/173) [JP Exclusive]',
     setName: 'Tag All Stars (SM12a)',
-    image: 'https://assets.tcgdex.net/ja/SM/sm12a/192/high.webp',
-    imageUrl: 'https://assets.tcgdex.net/ja/SM/sm12a/192/high.webp',
+    image: 'https://assets.tcgdex.net/ja/SM/SM12a/192/high.webp',
+    imageUrl: 'https://assets.tcgdex.net/ja/SM/SM12a/192/high.webp',
     price: '460.00',
     rarity: 'Ultra Rare',
     category: 'Trainer',
@@ -1142,8 +1180,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'sm12a-193',
     name: "Blue's Tactics (Tag All Stars Alt Art Full Art 193/173) [JP Exclusive]",
     setName: 'Tag All Stars (SM12a)',
-    image: 'https://assets.tcgdex.net/ja/SM/sm12a/193/high.webp',
-    imageUrl: 'https://assets.tcgdex.net/ja/SM/sm12a/193/high.webp',
+    image: 'https://assets.tcgdex.net/ja/SM/SM12a/193/high.webp',
+    imageUrl: 'https://assets.tcgdex.net/ja/SM/SM12a/193/high.webp',
     price: '65.00',
     rarity: 'Ultra Rare',
     category: 'Trainer',
@@ -1157,8 +1195,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'sm12a-194',
     name: 'Bellelba & Brycen-Man (Tag All Stars Full Art 194/173) [JP Exclusive]',
     setName: 'Tag All Stars (SM12a)',
-    image: 'https://assets.tcgdex.net/ja/SM/sm12a/194/high.webp',
-    imageUrl: 'https://assets.tcgdex.net/ja/SM/sm12a/194/high.webp',
+    image: 'https://assets.tcgdex.net/ja/SM/SM12a/194/high.webp',
+    imageUrl: 'https://assets.tcgdex.net/ja/SM/SM12a/194/high.webp',
     price: '42.00',
     rarity: 'Ultra Rare',
     category: 'Trainer',
@@ -1172,8 +1210,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'sm12a-195',
     name: 'Hapu (Tag All Stars Full Art 195/173) [JP Exclusive]',
     setName: 'Tag All Stars (SM12a)',
-    image: 'https://assets.tcgdex.net/ja/SM/sm12a/195/high.webp',
-    imageUrl: 'https://assets.tcgdex.net/ja/SM/sm12a/195/high.webp',
+    image: 'https://assets.tcgdex.net/ja/SM/SM12a/195/high.webp',
+    imageUrl: 'https://assets.tcgdex.net/ja/SM/SM12a/195/high.webp',
     price: '45.00',
     rarity: 'Ultra Rare',
     category: 'Trainer',
@@ -1187,8 +1225,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'sm12a-196',
     name: "Green's Exploration (Tag All Stars Alt Art Full Art 196/173) [JP Exclusive]",
     setName: 'Tag All Stars (SM12a)',
-    image: 'https://assets.tcgdex.net/ja/SM/sm12a/196/high.webp',
-    imageUrl: 'https://assets.tcgdex.net/ja/SM/sm12a/196/high.webp',
+    image: 'https://assets.tcgdex.net/ja/SM/SM12a/196/high.webp',
+    imageUrl: 'https://assets.tcgdex.net/ja/SM/SM12a/196/high.webp',
     price: '210.00',
     rarity: 'Ultra Rare',
     category: 'Trainer',
@@ -1202,8 +1240,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'sm12a-199',
     name: 'Clay (Tag All Stars Full Art 199/173) [JP Exclusive]',
     setName: 'Tag All Stars (SM12a)',
-    image: 'https://assets.tcgdex.net/ja/SM/sm12a/199/high.webp',
-    imageUrl: 'https://assets.tcgdex.net/ja/SM/sm12a/199/high.webp',
+    image: 'https://assets.tcgdex.net/ja/SM/SM12a/199/high.webp',
+    imageUrl: 'https://assets.tcgdex.net/ja/SM/SM12a/199/high.webp',
     price: '28.00',
     rarity: 'Ultra Rare',
     category: 'Trainer',
@@ -1217,8 +1255,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'sm12a-201',
     name: "Red's Challenge (Tag All Stars Alt Art Full Art 201/173) [JP Exclusive]",
     setName: 'Tag All Stars (SM12a)',
-    image: 'https://assets.tcgdex.net/ja/SM/sm12a/201/high.webp',
-    imageUrl: 'https://assets.tcgdex.net/ja/SM/sm12a/201/high.webp',
+    image: 'https://assets.tcgdex.net/ja/SM/SM12a/201/high.webp',
+    imageUrl: 'https://assets.tcgdex.net/ja/SM/SM12a/201/high.webp',
     price: '85.00',
     rarity: 'Ultra Rare',
     category: 'Trainer',
@@ -1232,8 +1270,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'sm-p-401',
     name: 'Alolan Friends [JP Exclusive]',
     setName: 'SM-P Promotional Cards',
-    image: 'https://assets.tcgdex.net/ja/SM/sm-p/401/high.webp',
-    imageUrl: 'https://assets.tcgdex.net/ja/SM/sm-p/401/high.webp',
+    image: 'https://tcgplayer-cdn.tcgplayer.com/product/598478_in_1000x1000.jpg',
+    imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/598478_in_1000x1000.jpg',
     price: '1450.00',
     rarity: 'Promo',
     category: 'Trainer',
@@ -1247,8 +1285,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'sm-p-064',
     name: 'The Masked Royal [JP Exclusive]',
     setName: 'SM-P Promotional Cards',
-    image: 'https://assets.tcgdex.net/ja/SM/sm-p/064/high.webp',
-    imageUrl: 'https://assets.tcgdex.net/ja/SM/sm-p/064/high.webp',
+    image: 'https://tcgplayer-cdn.tcgplayer.com/product/598161_in_1000x1000.jpg',
+    imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/598161_in_1000x1000.jpg',
     price: '3200.00',
     rarity: 'Promo',
     category: 'Trainer',
@@ -1262,8 +1300,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'sm-p-397',
     name: 'Lillie (Extra Battle Day Promo) [JP Exclusive]',
     setName: 'Extra Battle Day Prize Promos',
-    image: 'https://assets.tcgdex.net/ja/SM/sm-p/397/high.webp',
-    imageUrl: 'https://assets.tcgdex.net/ja/SM/sm-p/397/high.webp',
+    image: 'https://tcgplayer-cdn.tcgplayer.com/product/598474_in_1000x1000.jpg',
+    imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/598474_in_1000x1000.jpg',
     price: '4800.00',
     rarity: 'Promo',
     category: 'Trainer',
@@ -1277,8 +1315,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'sm-p-395',
     name: 'Acerola (Extra Battle Day Promo) [JP Exclusive]',
     setName: 'Extra Battle Day Prize Promos',
-    image: 'https://assets.tcgdex.net/ja/SM/sm-p/395/high.webp',
-    imageUrl: 'https://assets.tcgdex.net/ja/SM/sm-p/395/high.webp',
+    image: 'https://tcgplayer-cdn.tcgplayer.com/product/598472_in_1000x1000.jpg',
+    imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/598472_in_1000x1000.jpg',
     price: '3600.00',
     rarity: 'Promo',
     category: 'Trainer',
@@ -1292,10 +1330,40 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'sm-p-396',
     name: 'Guzma (Extra Battle Day Promo) [JP Exclusive]',
     setName: 'Extra Battle Day Prize Promos',
-    image: 'https://assets.tcgdex.net/ja/SM/sm-p/396/high.webp',
-    imageUrl: 'https://assets.tcgdex.net/ja/SM/sm-p/396/high.webp',
+    image: 'https://tcgplayer-cdn.tcgplayer.com/product/598473_in_1000x1000.jpg',
+    imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/598473_in_1000x1000.jpg',
     price: '1200.00',
     rarity: 'Promo',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'ja',
+    game: 'pokemon-japan',
+    isExclusive: true,
+    pricingSource: 'Cardmarket'
+  },
+  {
+    id: 'sm2l-182',
+    name: 'Blacksmith (The Best of XY Full Art 182/171) [JP Exclusive]',
+    setName: 'The Best of XY (SM2L)',
+    image: 'https://tcgplayer-cdn.tcgplayer.com/product/598717_in_1000x1000.jpg',
+    imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/598717_in_1000x1000.jpg',
+    price: '45.00',
+    rarity: 'Ultra Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'ja',
+    game: 'pokemon-japan',
+    isExclusive: true,
+    pricingSource: 'TCGPlayer'
+  },
+  {
+    id: 'sm2l-177',
+    name: 'Karen (The Best of XY Full Art 177/171) [JP Exclusive]',
+    setName: 'The Best of XY (SM2L)',
+    image: 'https://tcgplayer-cdn.tcgplayer.com/product/598716_in_1000x1000.jpg',
+    imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/598716_in_1000x1000.jpg',
+    price: '240.00',
+    rarity: 'Ultra Rare',
     category: 'Trainer',
     trainerType: 'Supporter',
     language: 'ja',
@@ -1322,8 +1390,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'cs-p-friends-galar',
     name: 'Friends in Galar (Simplified Chinese Stamp Box Promo) [CH Exclusive]',
     setName: 'Simplified Chinese CS-P Promos',
-    image: 'https://images.pokemontcg.io/swsh9/TG23_hires.png',
-    imageUrl: 'https://images.pokemontcg.io/swsh9/TG23_hires.png',
+    image: 'https://images.pokemontcg.io/swsh12tg/TG23_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/swsh12tg/TG23_hires.png',
     price: '220.00',
     rarity: 'Promo',
     category: 'Trainer',
@@ -1337,8 +1405,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'csv9c-257',
     name: "Lisia's Appeal (Starry Crystal CSV9C SAR 257/208) [CH Exclusive]",
     setName: 'Starry Crystal (CSV9C)',
-    image: 'https://images.pokemontcg.io/sv8/246_hires.png',
-    imageUrl: 'https://images.pokemontcg.io/sv8/246_hires.png',
+    image: 'https://media.pokipair.com/2026/05/06112014/CSVL1-Journey-Promo-Pack-Simplified-Chinese-Pokemon-PokiPair-092.png',
+    imageUrl: 'https://media.pokipair.com/2026/05/06112014/CSVL1-Journey-Promo-Pack-Simplified-Chinese-Pokemon-PokiPair-092.png',
     price: '240.00',
     rarity: 'Special Illustration Rare',
     category: 'Trainer',
@@ -1367,8 +1435,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'csv11-ns-plan',
     name: "N's Plan (Black Bolt CSV11 SAR) [CH Exclusive]",
     setName: 'Black Bolt (CSV11)',
-    image: 'https://images.pokemontcg.io/bw3/101_hires.png',
-    imageUrl: 'https://images.pokemontcg.io/bw3/101_hires.png',
+    image: 'https://www.pokebeach.com/news/2026/10/N.png',
+    imageUrl: 'https://www.pokebeach.com/news/2026/10/N.png',
     price: '210.00',
     rarity: 'Special Illustration Rare',
     category: 'Trainer',
@@ -1382,8 +1450,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'csv12-hilda',
     name: 'Hilda (White Flare CSV12 SAR) [CH Exclusive]',
     setName: 'White Flare (CSV12)',
-    image: 'https://images.pokemontcg.io/sm12/216_hires.png',
-    imageUrl: 'https://images.pokemontcg.io/sm12/216_hires.png',
+    image: 'https://www.pokebeach.com/news/2026/10/Hilda.png',
+    imageUrl: 'https://www.pokebeach.com/news/2026/10/Hilda.png',
     price: '280.00',
     rarity: 'Special Illustration Rare',
     category: 'Trainer',
@@ -1397,8 +1465,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'csv9pt5c-159',
     name: 'Rika (Stellar Miracle CSV9.5C SAR 159/129) [CH Exclusive]',
     setName: 'Stellar Miracle (CSV9.5C)',
-    image: 'https://images.pokemontcg.io/sv4/241_hires.png',
-    imageUrl: 'https://images.pokemontcg.io/sv4/241_hires.png',
+    image: 'https://media.pokipair.com/2025/07/08221929/Reward-Round-CSV4-Simplified-Chinese-Pokemon-Set-List-389.png',
+    imageUrl: 'https://media.pokipair.com/2025/07/08221929/Reward-Round-CSV4-Simplified-Chinese-Pokemon-Set-List-389.png',
     price: '125.00',
     rarity: 'Special Illustration Rare',
     category: 'Trainer',
@@ -1412,8 +1480,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'csv4c-157',
     name: 'Larry (Paradox Rift CSV4C SAR 157/129) [CH Exclusive]',
     setName: 'Paradox Rift (CSV4C)',
-    image: 'https://images.pokemontcg.io/sv4/235_hires.png',
-    imageUrl: 'https://images.pokemontcg.io/sv4/235_hires.png',
+    image: 'https://media.pokipair.com/2025/08/09001126/Larry-Dark-Crystal-Blaze-CS5-Simplified-Chinese-Pokemon-PokiPair-Store.png',
+    imageUrl: 'https://media.pokipair.com/2025/08/09001126/Larry-Dark-Crystal-Blaze-CS5-Simplified-Chinese-Pokemon-PokiPair-Store.png',
     price: '55.00',
     rarity: 'Special Illustration Rare',
     category: 'Trainer',
@@ -1427,8 +1495,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'csv5c-245',
     name: "Ciphermaniac's Codebreaking (Temporal Forces CSV5C SAR 245/204) [CH Exclusive]",
     setName: 'Temporal Forces (CSV5C)',
-    image: 'https://images.pokemontcg.io/sv5/198_hires.png',
-    imageUrl: 'https://images.pokemontcg.io/sv5/198_hires.png',
+    image: 'https://media.pokipair.com/2026/01/14181856/CSV7-Blade-Awakened-Card-List-Simplified-Chinese-Pokemon-PokiPair-Store-598.png',
+    imageUrl: 'https://media.pokipair.com/2026/01/14181856/CSV7-Blade-Awakened-Card-List-Simplified-Chinese-Pokemon-PokiPair-Store-598.png',
     price: '65.00',
     rarity: 'Special Illustration Rare',
     category: 'Trainer',
@@ -1442,8 +1510,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'csv7c-255',
     name: 'Carmine (Mask of Change CSV7C SAR 255/207) [CH Exclusive]',
     setName: 'Twilight Masquerade (CSV7C)',
-    image: 'https://images.pokemontcg.io/sv6/204_hires.png',
-    imageUrl: 'https://images.pokemontcg.io/sv6/204_hires.png',
+    image: 'https://media.pokipair.com/2026/03/13084226/Bright-Fantasy-CSV8-Set-List-Simplified-Chinese-Pokemon-Ireland-Pokipair-Store-Ireland-607.png',
+    imageUrl: 'https://media.pokipair.com/2026/03/13084226/Bright-Fantasy-CSV8-Set-List-Simplified-Chinese-Pokemon-Ireland-Pokipair-Store-Ireland-607.png',
     price: '145.00',
     rarity: 'Special Illustration Rare',
     category: 'Trainer',
@@ -1457,8 +1525,8 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     id: 'csv8c-276',
     name: "Brock's Scouting (Shrouded Fable CSV8C SAR 276/222) [CH Exclusive]",
     setName: 'Shrouded Fable (CSV8C)',
-    image: 'https://images.pokemontcg.io/sv3pt5/187_hires.png',
-    imageUrl: 'https://images.pokemontcg.io/sv3pt5/187_hires.png',
+    image: 'https://media.pokipair.com/2026/08/10100732/Chasing-Glory-CSV10-Simplified-Chinese-Pokemon-Set-List-PokiPair-Ireland-672.png',
+    imageUrl: 'https://media.pokipair.com/2026/08/10100732/Chasing-Glory-CSV10-Simplified-Chinese-Pokemon-Set-List-PokiPair-Ireland-672.png',
     price: '75.00',
     rarity: 'Special Illustration Rare',
     category: 'Trainer',

@@ -50,7 +50,21 @@ export const KNOWN_CARD_PRICING: Record<string, KnownPriceEntry> = {
   // Hilda (Ultra Rare / Full Art - White Flare / Japanese sv10W-164)
   'sv-hilda-fa': { tcgplayerId: '596100', price: 9.43, source: 'TCGPlayer' },
   // Hilda (Uncommon - White Flare)
-  'sv-hilda-unc': { tcgplayerId: '596099', price: 1.85, source: 'TCGPlayer' }
+  'sv-hilda-unc': { tcgplayerId: '596099', price: 1.85, source: 'TCGPlayer' },
+
+  // Karen (Mega Powers Premium Collection Full Art - XY177a)
+  'xyp-177a': { tcgplayerId: '148344', price: 96.00, source: 'TCGPlayer' },
+  'xyp-xy177a': { tcgplayerId: '148344', price: 96.00, source: 'TCGPlayer' },
+  'xy177a': { tcgplayerId: '148344', price: 96.00, source: 'TCGPlayer' },
+  // Karen (XY Black Star Promos Regular - XY177)
+  'xyp-177': { tcgplayerId: '123438', price: 11.00, source: 'TCGPlayer' },
+  'xyp-xy177': { tcgplayerId: '123438', price: 11.00, source: 'TCGPlayer' },
+  // Karen (Japanese The Best of XY Full Art 177/171)
+  'sm2l-177': { tcgplayerId: '598716', price: 240.00, source: 'Cardmarket / Mercari' },
+
+  // Blacksmith (Japanese The Best of XY Full Art 182/171)
+  'sm2l-182': { tcgplayerId: '598717', price: 45.00, source: 'TCGPlayer' },
+  'xy171-182': { tcgplayerId: '598717', price: 45.00, source: 'TCGPlayer' }
 };
 
 export function getKnownCardPrice(
@@ -126,6 +140,20 @@ export function getKnownCardPrice(
     }
     if (lower.includes('aether foundation') && (lower.includes('hidden fates') || sLower.includes('hidden fates') || cardId?.toLowerCase().includes('sv81'))) {
       return KNOWN_CARD_PRICING['sma-SV81'];
+    }
+    if (lower.includes('karen') || lower.includes('カリン')) {
+      if (cardId?.toLowerCase().includes('sm2l') || sLower.includes('best of xy') || lower.includes('best of xy') || cardId?.toLowerCase().includes('171')) {
+        return KNOWN_CARD_PRICING['sm2l-177'];
+      }
+      if (isUltra || lower.includes('177a') || lower.includes('full art') || rLower.includes('promo')) {
+        return KNOWN_CARD_PRICING['xyp-177a'];
+      }
+      return KNOWN_CARD_PRICING['xyp-177'];
+    }
+    if (lower.includes('blacksmith') || lower.includes('鍛冶屋')) {
+      if (isUltra || cardId?.toLowerCase().includes('sm2l') || sLower.includes('best of xy') || lower.includes('182') || lower.includes('full art')) {
+        return KNOWN_CARD_PRICING['sm2l-182'];
+      }
     }
   }
   return null;
