@@ -80,6 +80,28 @@ export function getEraPriority(id?: string): number {
 }
 
 export function inferCardRarity(d: TcgdexCardDetail): string {
+  const localIdStr = (d.localId || '').toLowerCase().trim();
+  const idStr = (d.id || '').toLowerCase().trim();
+
+  // Yellow A Alternate Art Promos (Hex Maniac 75a, Blacksmith 88a, N 105a, Delinquent 98b, Shauna 111a, Team Flare Grunt 73a, Karen 114a, Sycamore 114a, Shaymin 77a, etc.)
+  // TCGdex often marks these as 'Uncommon' because they share the base set number with an 'a' or 'b' suffix.
+  if (
+    localIdStr.endsWith('a') ||
+    localIdStr.endsWith('b') ||
+    idStr.includes('-75a') ||
+    idStr.includes('-88a') ||
+    idStr.includes('-98b') ||
+    idStr.includes('-105a') ||
+    idStr.includes('-111a') ||
+    idStr.includes('-114a') ||
+    idStr.includes('-73a') ||
+    idStr.includes('-77a') ||
+    idStr.includes('-65a') ||
+    idStr.includes('-79a')
+  ) {
+    return 'Ultra Rare';
+  }
+
   if (d.rarity && d.rarity.toLowerCase() !== 'none') {
     return d.rarity;
   }

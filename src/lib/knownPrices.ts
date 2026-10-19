@@ -1,7 +1,7 @@
 // Verified TCGPlayer product IDs and market prices for high-value cards
 // where third-party metadata APIs (like TCGdex) occasionally report null pricing
 export interface KnownPriceEntry {
-  tcgplayerId: string;
+  tcgplayerId?: string;
   price: number;
   source: string;
 }
@@ -64,7 +64,86 @@ export const KNOWN_CARD_PRICING: Record<string, KnownPriceEntry> = {
 
   // Blacksmith (Japanese The Best of XY Full Art 182/171)
   'sm2l-182': { tcgplayerId: '598717', price: 45.00, source: 'TCGPlayer' },
-  'xy171-182': { tcgplayerId: '598717', price: 45.00, source: 'TCGPlayer' }
+  'xy171-182': { tcgplayerId: '598717', price: 45.00, source: 'TCGPlayer' },
+  'xy2-88a': { tcgplayerId: '148339', price: 45.00, source: 'TCGPlayer' },
+
+  // Hex Maniac (Premium Trainer's XY Collection 75a/98 & The Best of XY 181/171)
+  'xy7-75a': { tcgplayerId: '148342', price: 126.40, source: 'TCGPlayer' },
+  '75a/98': { tcgplayerId: '148342', price: 126.40, source: 'TCGPlayer' },
+  'sm2l-181': { tcgplayerId: '598818', price: 420.00, source: 'Cardmarket / Mercari' },
+  'xy171-181': { tcgplayerId: '598818', price: 420.00, source: 'Cardmarket / Mercari' },
+
+  // N (Premium Trainer's XY Collection 105a/124 & The Best of XY 180/171)
+  'xy10-105a': { tcgplayerId: '148347', price: 68.50, source: 'TCGPlayer' },
+  '105a/124': { tcgplayerId: '148347', price: 68.50, source: 'TCGPlayer' },
+  'sm2l-180': { tcgplayerId: '598897', price: 160.00, source: 'Cardmarket / Mercari' },
+  'xy171-180': { tcgplayerId: '598897', price: 160.00, source: 'Cardmarket / Mercari' },
+
+  // Delinquent (Premium Trainer's XY Collection 98b/122 & The Best of XY 184/171)
+  'xy9-98b': { tcgplayerId: '148341', price: 32.00, source: 'TCGPlayer' },
+  '98b/122': { tcgplayerId: '148341', price: 32.00, source: 'TCGPlayer' },
+  'sm2l-184': { tcgplayerId: '598755', price: 95.00, source: 'Cardmarket / Mercari' },
+  'xy171-184': { tcgplayerId: '598755', price: 95.00, source: 'Cardmarket / Mercari' },
+
+  // Shauna (Premium Trainer's XY Collection 111a/124 & The Best of XY 185/171)
+  'xy10-111a': { tcgplayerId: '148349', price: 34.00, source: 'TCGPlayer' },
+  '111a/124': { tcgplayerId: '148349', price: 34.00, source: 'TCGPlayer' },
+  'sm2l-185': { tcgplayerId: '598955', price: 110.00, source: 'Cardmarket / Mercari' },
+  'xy171-185': { tcgplayerId: '598955', price: 110.00, source: 'Cardmarket / Mercari' },
+
+  // Team Flare Grunt (Premium Trainer's XY Collection 73a/83 & The Best of XY 186/171)
+  'g1-73a': { tcgplayerId: '148351', price: 18.50, source: 'TCGPlayer' },
+  '73a/83': { tcgplayerId: '148351', price: 18.50, source: 'TCGPlayer' },
+  'sm2l-186': { tcgplayerId: '598983', price: 65.00, source: 'Cardmarket / Mercari' },
+  'xy171-186': { tcgplayerId: '598983', price: 65.00, source: 'Cardmarket / Mercari' },
+
+  // Team Skull Grunt (Special Box Japanese Promo 013/SM-P)
+  'sm-p-013': { tcgplayerId: '598475', price: 180.00, source: 'Cardmarket / Mercari' },
+
+  // Tournament Collection Promos
+  'swsh121': { tcgplayerId: '246830', price: 42.00, source: 'TCGPlayer' },
+  'swsh178': { tcgplayerId: '272583', price: 9.50, source: 'TCGPlayer' },
+  'swsh251': { tcgplayerId: '488344', price: 18.00, source: 'TCGPlayer' },
+  'swsh302': { tcgplayerId: '490197', price: 16.50, source: 'TCGPlayer' },
+  'svp-124': { tcgplayerId: '544154', price: 22.00, source: 'TCGPlayer' },
+
+  // Tag All Stars Alt Art Full Arts
+  'sm12a-193': { tcgplayerId: '205392', price: 95.00, source: 'Cardmarket / Mercari' },
+  'sm12a-196': { tcgplayerId: '205394', price: 210.00, source: 'Cardmarket / Mercari' },
+  'sm12a-201': { tcgplayerId: '205396', price: 85.00, source: 'Cardmarket / Mercari' },
+
+  // Professor Sycamore (Premium Trainer's XY Collection 114a/114 & The Best of XY 179/171)
+  'xy9-114a': { tcgplayerId: '148348', price: 14.00, source: 'TCGPlayer' },
+  '114a/114': { tcgplayerId: '148348', price: 14.00, source: 'TCGPlayer' },
+  'sm2l-179': { tcgplayerId: '598971', price: 45.00, source: 'Cardmarket / Mercari' },
+  'xy171-179': { tcgplayerId: '598971', price: 45.00, source: 'Cardmarket / Mercari' },
+
+  // Lysandre (The Best of XY 178/171 Full Art)
+  'sm2l-178': { tcgplayerId: '598851', price: 40.00, source: 'Cardmarket / Mercari' },
+  'xy171-178': { tcgplayerId: '598851', price: 40.00, source: 'Cardmarket / Mercari' },
+
+  // Shaymin-EX (Premium Trainer's XY Collection 77a/108 & The Best of XY 176/171)
+  'xy6-77a': { tcgplayerId: '148350', price: 28.00, source: 'TCGPlayer' },
+  '77a/108': { tcgplayerId: '148350', price: 28.00, source: 'TCGPlayer' },
+  'sm2l-176': { price: 35.00, source: 'Cardmarket / Mercari' },
+
+  // Red's Pikachu & Lillie's Clefairy Promos
+  'sm-p-279': { tcgplayerId: '598471', price: 85.00, source: 'Cardmarket / Mercari' },
+  'sm-p-381': { tcgplayerId: '598476', price: 220.00, source: 'Cardmarket / Mercari' },
+
+  // N (BW Black Star Promo BW100)
+  'bw100': { tcgplayerId: '87771', price: 130.00, source: 'TCGPlayer' },
+  'bw-p-100': { tcgplayerId: '87771', price: 130.00, source: 'TCGPlayer' },
+
+  // Professor's Research [Professor Oak] (Celebrations 023/025)
+  'cel25-23': { tcgplayerId: '250320', price: 0.92, source: 'TCGPlayer' },
+  'swsh-cel-23': { tcgplayerId: '250320', price: 0.92, source: 'TCGPlayer' },
+
+  // 30th Anniversary / 30th Celebration Classic Collection
+  'me-30th-n': { price: 48.00, source: 'TCGPlayer' },
+  'me-30th-misty': { price: 35.00, source: 'TCGPlayer' },
+  'm6a-n': { price: 55.00, source: 'Cardmarket / Mercari' },
+  'm6a-misty': { price: 38.00, source: 'Cardmarket / Mercari' }
 };
 
 export function getKnownCardPrice(
@@ -151,8 +230,73 @@ export function getKnownCardPrice(
       return KNOWN_CARD_PRICING['xyp-177'];
     }
     if (lower.includes('blacksmith') || lower.includes('鍛冶屋')) {
-      if (isUltra || cardId?.toLowerCase().includes('sm2l') || sLower.includes('best of xy') || lower.includes('182') || lower.includes('full art')) {
-        return KNOWN_CARD_PRICING['sm2l-182'];
+      if (isUltra || cardId?.toLowerCase().includes('sm2l') || sLower.includes('best of xy') || lower.includes('182') || lower.includes('full art') || cardId?.toLowerCase().includes('88a')) {
+        return cardId?.toLowerCase().includes('sm2l') ? KNOWN_CARD_PRICING['sm2l-182'] : KNOWN_CARD_PRICING['xy2-88a'];
+      }
+    }
+    if (lower.includes('hex maniac') || lower.includes('オカルトマニア')) {
+      if (cardId?.toLowerCase().includes('sm2l') || sLower.includes('best of xy') || lower.includes('181')) {
+        return KNOWN_CARD_PRICING['sm2l-181'];
+      }
+      if (isUltra || lower.includes('75a') || lower.includes('full art') || rLower.includes('promo')) {
+        return KNOWN_CARD_PRICING['xy7-75a'];
+      }
+    }
+    if (lower.includes('delinquent') || lower.includes('こわいおねえさん')) {
+      if (cardId?.toLowerCase().includes('sm2l') || sLower.includes('best of xy') || lower.includes('184')) {
+        return KNOWN_CARD_PRICING['sm2l-184'];
+      }
+      if (isUltra || lower.includes('98b') || lower.includes('full art') || rLower.includes('promo')) {
+        return KNOWN_CARD_PRICING['xy9-98b'];
+      }
+    }
+    if (lower.includes('shauna') || lower.includes('サナ')) {
+      if (cardId?.toLowerCase().includes('sm2l') || sLower.includes('best of xy') || lower.includes('185')) {
+        return KNOWN_CARD_PRICING['sm2l-185'];
+      }
+      if (isUltra || lower.includes('111a') || (lower.includes('full art') && !lower.includes('fusion'))) {
+        return KNOWN_CARD_PRICING['xy10-111a'];
+      }
+    }
+    if (lower.includes('team flare grunt') || lower.includes('フレア団したっぱ')) {
+      if (cardId?.toLowerCase().includes('sm2l') || sLower.includes('best of xy') || lower.includes('186')) {
+        return KNOWN_CARD_PRICING['sm2l-186'];
+      }
+      if (isUltra || lower.includes('73a') || lower.includes('full art')) {
+        return KNOWN_CARD_PRICING['g1-73a'];
+      }
+    }
+    if (lower.includes('team skull grunt') || lower.includes('スカル団したっぱ')) {
+      return KNOWN_CARD_PRICING['sm-p-013'];
+    }
+    if (lower === 'n' || lower.includes(' n ') || lower.startsWith('n ') || lower.includes("n's")) {
+      if (cardId?.toLowerCase().includes('sm2l') || sLower.includes('best of xy') || lower.includes('180')) {
+        return KNOWN_CARD_PRICING['sm2l-180'];
+      }
+      if (isUltra || lower.includes('105a') || lower.includes('full art')) {
+        return KNOWN_CARD_PRICING['xy10-105a'];
+      }
+    }
+    if (lower.includes('marnie') && (lower.includes('swsh121') || sLower.includes('tournament collection') || lower.includes('tournament'))) {
+      return KNOWN_CARD_PRICING['swsh121'];
+    }
+    if (lower.includes('klara') && (lower.includes('swsh302') || sLower.includes('tournament collection') || lower.includes('tournament'))) {
+      return KNOWN_CARD_PRICING['swsh302'];
+    }
+    if (lower.includes('juniper') && (lower.includes('swsh178') || sLower.includes('tournament collection') || lower.includes('tournament'))) {
+      return KNOWN_CARD_PRICING['swsh178'];
+    }
+    if (lower.includes('sycamore') || lower.includes('プラターヌ')) {
+      if (cardId?.toLowerCase().includes('sm2l') || sLower.includes('best of xy') || lower.includes('179')) {
+        return KNOWN_CARD_PRICING['sm2l-179'];
+      }
+      if (isUltra || lower.includes('114a') || lower.includes('full art')) {
+        return KNOWN_CARD_PRICING['xy9-114a'];
+      }
+    }
+    if (lower.includes('lysandre') || lower.includes('フラダリ')) {
+      if (cardId?.toLowerCase().includes('sm2l') || sLower.includes('best of xy') || lower.includes('178')) {
+        return KNOWN_CARD_PRICING['sm2l-178'];
       }
     }
   }

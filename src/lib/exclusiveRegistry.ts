@@ -39,8 +39,20 @@ export const TRUE_JP_EXCLUSIVE_IDS = new Set<string>([
   'sm12a-201', // Red's Challenge Alt Art Full Art (201/173)
 
   // The Best of XY (SM2L) Exclusive Full Arts
+  'sm2l-178', // Lysandre Full Art (178/171)
+  'sm2l-179', // Professor Sycamore Full Art (179/171)
+  'sm2l-180', // N Full Art (180/171)
+  'sm2l-181', // Hex Maniac Full Art (181/171)
   'sm2l-182', // Blacksmith Full Art (182/171)
+  'sm2l-183', // Karen Full Art (183/171)
   'sm2l-177', // Karen Full Art (177/171)
+  'sm2l-184', // Delinquent Full Art (184/171)
+  'sm2l-185', // Shauna Full Art (185/171)
+  'sm2l-186', // Team Flare Grunt Full Art (186/171)
+
+  // Character Promos
+  'sm-p-279', // Red's Pikachu (279/SM-P)
+  'sm-p-381', // Clefairy (Lillie Dream League Promo 381/SM-P)
 
   // Japan Post Stamp Box Promos
   's-p-226', // Cramorant Beauty Looking Back (226/S-P)
@@ -203,11 +215,16 @@ export function isTrueJapaneseExclusive(card: {
     if (nameLower.includes('misty & lorelei') || nameLower.includes('カスミ&カンナ')) return true;
   }
 
-  // 3b. The Best of XY (SM2L) Exclusive Full Arts (Blacksmith 182, Karen 177)
+  // 3b. The Best of XY (SM2L) Exclusive Full Arts
   if (idNorm.includes('sm2l') || setIdNorm.includes('sm2l') || setLower.includes('best of xy') || setLower.includes('ベストオブxy')) {
-    if (['182', '177'].includes(localId)) return true;
+    if (['180', '181', '182', '183', '177', '184', '185', '186'].includes(localId)) return true;
+    if (nameLower.includes('hex maniac') || nameLower.includes('オカルトマニア')) return true;
     if (nameLower.includes('blacksmith') || nameLower.includes('鍛冶屋')) return true;
     if (nameLower.includes('karen') || nameLower.includes('カリン')) return true;
+    if (nameLower.includes('delinquent') || nameLower.includes('こわいおねえさん')) return true;
+    if (nameLower.includes('shauna') || nameLower.includes('サナ')) return true;
+    if (nameLower.includes('team flare grunt') || nameLower.includes('フレア団したっぱ')) return true;
+    if (nameLower === 'n' || nameLower.includes(' n ') || nameLower.startsWith('n ')) return true;
   }
 
   // 4. Extra Battle Day promo numbers (395-399, 401, 064, 100)
@@ -428,8 +445,23 @@ export function getCardEra(cardId?: string, setName?: string): string {
   const set = (setName || '').toLowerCase();
 
   // 1. High priority explicit overrides for cross-generational sets/promos
-  if (id.includes('friends-alola') || id.includes('alolan-friends') || set.includes('friends in alola') || set.includes('alolan friends')) {
+  if (set.includes('30th celebration') || set.includes('30th anniversary') || set.includes('m6a') || id.startsWith('me') || id.startsWith('m6') || set.includes('mega evolution') || set.includes('delta reign') || set.includes('ascended heroes') || set.includes('pitch black') || set.includes('chaos rising') || set.includes('perfect order') || set.includes('phantasmal flames')) {
+    return 'me';
+  }
+  if (set.includes('celebrations') || id.startsWith('cel25') || id.startsWith('swsh-cel')) {
+    return 'swsh';
+  }
+  if (
+    set.includes('extra battle day') ||
+    id.includes('395') || id.includes('396') || id.includes('397') || id.includes('398') || id.includes('399') ||
+    id.includes('064') || id.includes('100') ||
+    id.includes('friends-alola') || id.includes('alolan-friends') || set.includes('friends in alola') || set.includes('alolan friends') ||
+    set.includes('masked royal')
+  ) {
     return 'sm';
+  }
+  if (set.includes('black bolt') || set.includes('white flare') || id.includes('csv11') || id.includes('csv12') || id.includes('ns-plan') || id.includes('hilda')) {
+    return 'sv';
   }
   if (set.includes('hidden fates') || id.startsWith('sma') || set.includes('sm115')) {
     return 'sm';
@@ -1357,6 +1389,306 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     pricingSource: 'TCGPlayer'
   },
   {
+    id: 'xy2-88a',
+    name: 'Blacksmith (Alternate Full Art 88a/106)',
+    setName: 'Alternate Art Promos',
+    image: 'https://assets.tcgdex.net/en/xy/xy2/88a/high.webp',
+    imageUrl: 'https://assets.tcgdex.net/en/xy/xy2/88a/high.webp',
+    price: '45.00',
+    rarity: 'Ultra Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'en',
+    game: 'pokemon',
+    isExclusive: false,
+    pricingSource: 'TCGPlayer'
+  },
+  {
+    id: 'sm2l-181',
+    name: 'Hex Maniac (The Best of XY Full Art 181/171) [JP Exclusive]',
+    setName: 'The Best of XY (SM2L)',
+    image: 'https://tcgplayer-cdn.tcgplayer.com/product/598818_in_1000x1000.jpg',
+    imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/598818_in_1000x1000.jpg',
+    price: '420.00',
+    rarity: 'Ultra Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'ja',
+    game: 'pokemon-japan',
+    isExclusive: true,
+    pricingSource: 'Cardmarket / Mercari'
+  },
+  {
+    id: 'xy7-75a',
+    name: 'Hex Maniac (Alternate Full Art 75a/98)',
+    setName: 'Alternate Art Promos',
+    image: 'https://assets.tcgdex.net/en/xy/xy7/75a/high.webp',
+    imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/148342_in_1000x1000.jpg',
+    price: '126.40',
+    rarity: 'Ultra Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'en',
+    game: 'pokemon',
+    isExclusive: false,
+    pricingSource: 'TCGPlayer'
+  },
+  {
+    id: 'sm2l-180',
+    name: 'N (The Best of XY Full Art 180/171) [JP Exclusive]',
+    setName: 'The Best of XY (SM2L)',
+    image: 'https://tcgplayer-cdn.tcgplayer.com/product/598897_in_1000x1000.jpg',
+    imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/598897_in_1000x1000.jpg',
+    price: '160.00',
+    rarity: 'Ultra Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'ja',
+    game: 'pokemon-japan',
+    isExclusive: true,
+    pricingSource: 'Cardmarket / Mercari'
+  },
+  {
+    id: 'xy10-105a',
+    name: 'N (Alternate Full Art 105a/124)',
+    setName: 'Alternate Art Promos',
+    image: 'https://assets.tcgdex.net/en/xy/xy10/105a/high.webp',
+    imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/148347_in_1000x1000.jpg',
+    price: '68.50',
+    rarity: 'Ultra Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'en',
+    game: 'pokemon',
+    isExclusive: false,
+    pricingSource: 'TCGPlayer'
+  },
+  {
+    id: 'sm2l-184',
+    name: 'Delinquent (The Best of XY Full Art 184/171) [JP Exclusive]',
+    setName: 'The Best of XY (SM2L)',
+    image: 'https://tcgplayer-cdn.tcgplayer.com/product/598755_in_1000x1000.jpg',
+    imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/598755_in_1000x1000.jpg',
+    price: '95.00',
+    rarity: 'Ultra Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'ja',
+    game: 'pokemon-japan',
+    isExclusive: true,
+    pricingSource: 'Cardmarket / Mercari'
+  },
+  {
+    id: 'xy9-98b',
+    name: 'Delinquent (Alternate Full Art 98b/122)',
+    setName: 'Alternate Art Promos',
+    image: 'https://assets.tcgdex.net/en/xy/xy9/98b/high.webp',
+    imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/148341_in_1000x1000.jpg',
+    price: '32.00',
+    rarity: 'Ultra Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'en',
+    game: 'pokemon',
+    isExclusive: false,
+    pricingSource: 'TCGPlayer'
+  },
+  {
+    id: 'sm2l-185',
+    name: 'Shauna (The Best of XY Full Art 185/171) [JP Exclusive]',
+    setName: 'The Best of XY (SM2L)',
+    image: 'https://tcgplayer-cdn.tcgplayer.com/product/598955_in_1000x1000.jpg',
+    imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/598955_in_1000x1000.jpg',
+    price: '110.00',
+    rarity: 'Ultra Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'ja',
+    game: 'pokemon-japan',
+    isExclusive: true,
+    pricingSource: 'Cardmarket / Mercari'
+  },
+  {
+    id: 'xy10-111a',
+    name: 'Shauna (Alternate Full Art 111a/124)',
+    setName: 'Alternate Art Promos',
+    image: 'https://assets.tcgdex.net/en/xy/xy10/111a/high.webp',
+    imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/148349_in_1000x1000.jpg',
+    price: '34.00',
+    rarity: 'Ultra Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'en',
+    game: 'pokemon',
+    isExclusive: false,
+    pricingSource: 'TCGPlayer'
+  },
+  {
+    id: 'sm2l-186',
+    name: 'Team Flare Grunt (The Best of XY Full Art 186/171) [JP Exclusive]',
+    setName: 'The Best of XY (SM2L)',
+    image: 'https://tcgplayer-cdn.tcgplayer.com/product/598983_in_1000x1000.jpg',
+    imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/598983_in_1000x1000.jpg',
+    price: '65.00',
+    rarity: 'Ultra Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'ja',
+    game: 'pokemon-japan',
+    isExclusive: true,
+    pricingSource: 'Cardmarket / Mercari'
+  },
+  {
+    id: 'g1-73a',
+    name: 'Team Flare Grunt (Alternate Full Art 73a/83)',
+    setName: 'Alternate Art Promos',
+    image: 'https://assets.tcgdex.net/en/xy/g1/73a/high.webp',
+    imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/148351_in_1000x1000.jpg',
+    price: '18.50',
+    rarity: 'Ultra Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'en',
+    game: 'pokemon',
+    isExclusive: false,
+    pricingSource: 'TCGPlayer'
+  },
+  {
+    id: 'sm-p-013',
+    name: 'Team Skull Grunt (Special Box Full Art 013/SM-P) [JP Exclusive]',
+    setName: 'SM-P Promotional Cards',
+    image: 'https://images.pokemontcg.io/smp/SM24_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/smp/SM24_hires.png',
+    price: '180.00',
+    rarity: 'Promo',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'ja',
+    game: 'pokemon-japan',
+    isExclusive: true,
+    pricingSource: 'Cardmarket / Mercari'
+  },
+  {
+    id: 'sm12a-193',
+    name: "Blue's Tactics (Tag All Stars Alt Art Full Art 193/173) [JP Exclusive]",
+    setName: 'Tag All Stars (SM12a)',
+    image: 'https://assets.tcgdex.net/ja/SM/SM12a/193/high.webp',
+    imageUrl: 'https://assets.tcgdex.net/ja/SM/SM12a/193/high.webp',
+    price: '95.00',
+    rarity: 'Ultra Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'ja',
+    game: 'pokemon-japan',
+    isExclusive: true,
+    pricingSource: 'Cardmarket'
+  },
+  {
+    id: 'sm12a-196',
+    name: "Green's Exploration (Tag All Stars Alt Art Full Art 196/173) [JP Exclusive]",
+    setName: 'Tag All Stars (SM12a)',
+    image: 'https://assets.tcgdex.net/ja/SM/SM12a/196/high.webp',
+    imageUrl: 'https://assets.tcgdex.net/ja/SM/SM12a/196/high.webp',
+    price: '210.00',
+    rarity: 'Ultra Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'ja',
+    game: 'pokemon-japan',
+    isExclusive: true,
+    pricingSource: 'Cardmarket'
+  },
+  {
+    id: 'sm12a-201',
+    name: "Red's Challenge (Tag All Stars Alt Art Full Art 201/173) [JP Exclusive]",
+    setName: 'Tag All Stars (SM12a)',
+    image: 'https://assets.tcgdex.net/ja/SM/SM12a/201/high.webp',
+    imageUrl: 'https://assets.tcgdex.net/ja/SM/SM12a/201/high.webp',
+    price: '85.00',
+    rarity: 'Ultra Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'ja',
+    game: 'pokemon-japan',
+    isExclusive: true,
+    pricingSource: 'Cardmarket'
+  },
+  {
+    id: 'swsh121',
+    name: 'Marnie (Premium Tournament Collection Full Art Promo SWSH121)',
+    setName: 'SWSH Black Star Promos',
+    image: 'https://images.pokemontcg.io/swshp/SWSH121_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/swshp/SWSH121_hires.png',
+    price: '42.00',
+    rarity: 'Promo',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'en',
+    game: 'pokemon',
+    isExclusive: false,
+    pricingSource: 'TCGPlayer'
+  },
+  {
+    id: 'swsh178',
+    name: 'Professor Juniper (Premium Tournament Collection Full Art Promo SWSH178)',
+    setName: 'SWSH Black Star Promos',
+    image: 'https://images.pokemontcg.io/swshp/SWSH178_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/swshp/SWSH178_hires.png',
+    price: '9.50',
+    rarity: 'Promo',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'en',
+    game: 'pokemon',
+    isExclusive: false,
+    pricingSource: 'TCGPlayer'
+  },
+  {
+    id: 'swsh251',
+    name: "Boss's Orders [Cyrus] (Premium Tournament Collection Full Art Promo SWSH251)",
+    setName: 'SWSH Black Star Promos',
+    image: 'https://images.pokemontcg.io/swshp/SWSH251_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/swshp/SWSH251_hires.png',
+    price: '18.00',
+    rarity: 'Promo',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'en',
+    game: 'pokemon',
+    isExclusive: false,
+    pricingSource: 'TCGPlayer'
+  },
+  {
+    id: 'swsh302',
+    name: 'Klara (Premium Tournament Collection Full Art Promo SWSH302)',
+    setName: 'SWSH Black Star Promos',
+    image: 'https://images.pokemontcg.io/swshp/SWSH302_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/swshp/SWSH302_hires.png',
+    price: '16.50',
+    rarity: 'Promo',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'en',
+    game: 'pokemon',
+    isExclusive: false,
+    pricingSource: 'TCGPlayer'
+  },
+  {
+    id: 'svp-124',
+    name: 'Iono (Premium Tournament Collection Full Art Promo 124)',
+    setName: 'Scarlet & Violet Promos',
+    image: 'https://images.pokemontcg.io/svp/124_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/svp/124_hires.png',
+    price: '22.00',
+    rarity: 'Promo',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'en',
+    game: 'pokemon',
+    isExclusive: false,
+    pricingSource: 'TCGPlayer'
+  },
+  {
     id: 'sm2l-177',
     name: 'Karen (The Best of XY Full Art 177/171) [JP Exclusive]',
     setName: 'The Best of XY (SM2L)',
@@ -1364,6 +1696,154 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/598716_in_1000x1000.jpg',
     price: '240.00',
     rarity: 'Ultra Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'ja',
+    game: 'pokemon-japan',
+    isExclusive: true,
+    pricingSource: 'Cardmarket'
+  },
+  {
+    id: 'xy9-114a',
+    name: 'Professor Sycamore (Alternate Full Art 114a/114)',
+    setName: 'Alternate Art Promos',
+    image: 'https://assets.tcgdex.net/en/xy/xy9/114a/high.webp',
+    imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/148348_in_1000x1000.jpg',
+    price: '14.00',
+    rarity: 'Ultra Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'en',
+    game: 'pokemon',
+    isExclusive: false,
+    pricingSource: 'TCGPlayer'
+  },
+  {
+    id: 'sm2l-179',
+    name: 'Professor Sycamore (The Best of XY Full Art 179/171) [JP Exclusive]',
+    setName: 'The Best of XY (SM2L)',
+    image: 'https://tcgplayer-cdn.tcgplayer.com/product/598971_in_1000x1000.jpg',
+    imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/598971_in_1000x1000.jpg',
+    price: '45.00',
+    rarity: 'Ultra Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'ja',
+    game: 'pokemon-japan',
+    isExclusive: true,
+    pricingSource: 'Cardmarket'
+  },
+  {
+    id: 'sm2l-178',
+    name: 'Lysandre (The Best of XY Full Art 178/171) [JP Exclusive]',
+    setName: 'The Best of XY (SM2L)',
+    image: 'https://tcgplayer-cdn.tcgplayer.com/product/598851_in_1000x1000.jpg',
+    imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/598851_in_1000x1000.jpg',
+    price: '40.00',
+    rarity: 'Ultra Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'ja',
+    game: 'pokemon-japan',
+    isExclusive: true,
+    pricingSource: 'Cardmarket'
+  },
+  {
+    id: 'bw100',
+    name: 'N (BW Black Star Promo Full Art BW100)',
+    setName: 'BW Black Star Promos',
+    image: 'https://images.pokemontcg.io/bwp/BW100_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/bwp/BW100_hires.png',
+    price: '130.00',
+    rarity: 'Promo',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'en',
+    game: 'pokemon',
+    isExclusive: false,
+    pricingSource: 'TCGPlayer'
+  },
+  {
+    id: 'sm-p-381',
+    name: "Clefairy / Lillie's Clefairy (Dream League Promo 381/SM-P) [JP Exclusive]",
+    setName: 'SM-P Promotional Cards',
+    image: 'https://tcgplayer-cdn.tcgplayer.com/product/598476_in_1000x1000.jpg',
+    imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/598476_in_1000x1000.jpg',
+    price: '220.00',
+    rarity: 'Promo',
+    category: 'Pokemon',
+    language: 'ja',
+    game: 'pokemon-japan',
+    isExclusive: true,
+    pricingSource: 'Cardmarket'
+  },
+  {
+    id: 'sm-p-279',
+    name: "Red's Pikachu (20th Anniversary Promo 279/SM-P) [JP Exclusive]",
+    setName: 'SM-P Promotional Cards',
+    image: 'https://tcgplayer-cdn.tcgplayer.com/product/598471_in_1000x1000.jpg',
+    imageUrl: 'https://tcgplayer-cdn.tcgplayer.com/product/598471_in_1000x1000.jpg',
+    price: '85.00',
+    rarity: 'Promo',
+    category: 'Pokemon',
+    language: 'ja',
+    game: 'pokemon-japan',
+    isExclusive: true,
+    pricingSource: 'Cardmarket'
+  },
+  {
+    id: 'me-30th-n',
+    name: 'N (30th Celebration Classic Collection Full Art)',
+    setName: 'ME: 30th Celebration',
+    image: 'https://images.pokemontcg.io/bw3/101_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/bw3/101_hires.png',
+    price: '48.00',
+    rarity: 'Classic Collection',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'en',
+    game: 'pokemon',
+    isExclusive: false,
+    pricingSource: 'TCGPlayer'
+  },
+  {
+    id: 'me-30th-misty',
+    name: 'Misty (30th Celebration Classic Collection)',
+    setName: 'ME: 30th Celebration',
+    image: 'https://images.pokemontcg.io/gym1/18_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/gym1/18_hires.png',
+    price: '35.00',
+    rarity: 'Classic Collection',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'en',
+    game: 'pokemon',
+    isExclusive: false,
+    pricingSource: 'TCGPlayer'
+  },
+  {
+    id: 'm6a-n',
+    name: 'N (MEGA Expansion 30th Celebration Full Art) [JP Exclusive]',
+    setName: 'MEGA Expansion 30th Celebration (M6a)',
+    image: 'https://images.pokemontcg.io/bw3/101_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/bw3/101_hires.png',
+    price: '55.00',
+    rarity: 'Classic Collection',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'ja',
+    game: 'pokemon-japan',
+    isExclusive: true,
+    pricingSource: 'Cardmarket'
+  },
+  {
+    id: 'm6a-misty',
+    name: 'Misty (MEGA Expansion 30th Celebration) [JP Exclusive]',
+    setName: 'MEGA Expansion 30th Celebration (M6a)',
+    image: 'https://images.pokemontcg.io/gym1/18_hires.png',
+    imageUrl: 'https://images.pokemontcg.io/gym1/18_hires.png',
+    price: '38.00',
+    rarity: 'Classic Collection',
     category: 'Trainer',
     trainerType: 'Supporter',
     language: 'ja',

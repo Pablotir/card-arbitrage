@@ -175,51 +175,92 @@ export function isPromoCard(card: SearchCardResult): boolean {
   const rarity = (card.rarity || '').toLowerCase();
   const id = (card.id || '').toLowerCase();
 
-  if (rarity.includes('promo')) return true;
+  // EXCLUSIONS from generic promo routing:
+  // 1. N's Plan and Hilda are expansion SARs from Black Bolt (CSV11) and White Flare (CSV12), NOT promos!
   if (
-    set.includes('promo') ||
-    set.includes('black star') ||
+    id.includes('ns-plan') ||
+    id.includes('hilda') ||
+    id.includes('csv11') ||
+    id.includes('csv12') ||
+    set.includes('black bolt') ||
+    set.includes('white flare')
+  ) {
+    return false;
+  }
+
+  // 2. Other Chinese expansion sets (CSV, Starry Crystal, Gem Pack, Collect 151 C)
+  if (id.startsWith('csv') || id.includes('151c') || set.includes('starry crystal') || set.includes('gem pack')) {
+    return false;
+  }
+
+  // 3. Celebrations (Professor's Research - Oak) belongs in SWSH Era (25th Anniversary), not promo
+  if (set.includes('celebrations') || id.startsWith('cel25') || id.startsWith('swsh-cel')) {
+    return false;
+  }
+
+  // 4. 30th Anniversary / 30th Celebration cards belong in Mega Evolution Era, not promo
+  if (set.includes('30th celebration') || set.includes('30th anniversary') || id.includes('30th') || set.includes('m6a') || id.startsWith('m6a')) {
+    return false;
+  }
+
+  // 5. Extra Battle Day, Alolan Friends, The Masked Royal belong in the Sun & Moon Era!
+  if (
     set.includes('extra battle day') ||
-    set.includes('prize promos') ||
+    name.includes('extra battle day') ||
+    id === 'sm-p-395' ||
+    id === 'sm-p-396' ||
+    id === 'sm-p-397' ||
+    id === 'sm-p-398' ||
+    id === 'sm-p-399' ||
+    id === 'sm-p-401' ||
+    id === 'sm-p-064' ||
+    id === 'sm-p-100' ||
+    name.includes('alolan friends') ||
+    name.includes('masked royal')
+  ) {
+    return false;
+  }
+
+  // Stamped & Retail/Food Collaborations always route to 'other'
+  if (
     set.includes('mcdonald') ||
     set.includes('happy meal') ||
     set.includes('pizza hut') ||
     set.includes('domino') ||
-    set.includes('stamped') ||
-    set.includes('collab') ||
-    set.includes('championship') ||
-    set.includes('journey promo pack')
+    set.includes('special delivery') ||
+    set.includes('van gogh') ||
+    set.includes('yu nagaba') ||
+    name.includes('special delivery') ||
+    name.includes('grey felt hat') ||
+    name.includes('yu nagaba') ||
+    name.includes('burgerchu') ||
+    name.includes('toys "r" us') ||
+    name.includes('gamestop')
   ) {
     return true;
   }
 
+  // Stamped promos
+  if (set.includes('stamped') || name.includes('stamped')) {
+    return true;
+  }
+
+  // Specific Promo series (Black Star Promos)
   if (
-    id.includes('-p-') ||
-    id.includes('-p') ||
+    set.includes('black star') ||
     id.startsWith('swshp') ||
     id.startsWith('svp') ||
-    id.startsWith('smp') ||
     id.startsWith('xyp') ||
     id.startsWith('bwp') ||
-    id.startsWith('hgssp') ||
-    id.startsWith('dpp') ||
-    id.startsWith('m-p') ||
-    id.startsWith('s-p') ||
-    id.startsWith('sm-p') ||
-    id.startsWith('xy-p') ||
-    id.startsWith('bw-p') ||
-    id.startsWith('sv-p') ||
-    id.startsWith('cs-p')
+    id.startsWith('s-p-') ||
+    id.startsWith('xy-p-') ||
+    id.startsWith('bw-p-') ||
+    id.startsWith('sv-p-')
   ) {
     return true;
   }
 
-  if (
-    name.includes('promo') ||
-    name.includes('extra battle day') ||
-    name.includes('stamped promo') ||
-    name.includes('happy meal')
-  ) {
+  if (rarity.includes('promo') || name.includes('promo')) {
     return true;
   }
 
@@ -260,60 +301,91 @@ export function getPromoSubEra(card: SearchCardResult): string {
 
 /**
  * Returns numeric release timestamp (YYYYMM) for chronological set sorting (newest first).
+ * Precisely calibrated to match official TCGPlayer release order for both English and Japanese sets.
  */
 export function getSetReleaseWeight(setName?: string, cardId?: string): number {
   const s = (setName || '').toLowerCase();
   const id = (cardId || '').toLowerCase();
 
-  // Mega Evolution (2025+)
-  if (s.includes('mega evolution') || id.startsWith('me')) return 202510;
+  // 1. Mega Evolution English & Japanese Sets (2025 - 2026)
+  if (s.includes('delta reign') || id.startsWith('me06') || s.includes('me06')) return 202612;
+  if (s.includes('ascended heroes') || id.includes('ascended') || s.includes('me: ascended')) return 202611;
+  if (s.includes('30th celebration') || s.includes('30th anniversary') || id.includes('30th') || s.includes('m6a') || id.startsWith('m6a')) return 202610;
+  if (s.includes('storm emeralda') || id.startsWith('m6') || s.includes('m6:')) return 202609;
+  if (s.includes('pitch black') || id.startsWith('me05') || s.includes('me05')) return 202609;
+  if (s.includes('abyss eye') || id.startsWith('m5') || s.includes('m5:')) return 202608;
+  if (s.includes('chaos rising') || id.startsWith('me04') || s.includes('me04')) return 202608;
+  if (s.includes('ninja spinner') || id.startsWith('m4') || s.includes('m4:')) return 202607;
+  if (s.includes('perfect order') || id.startsWith('me03') || s.includes('me03')) return 202607;
+  if (s.includes('nihil zero') || id.startsWith('m3') || s.includes('m3:')) return 202606;
+  if (s.includes('phantasmal flames') || id.startsWith('me02') || s.includes('me02')) return 202606;
+  if (s.includes('mega dream ex') || id.startsWith('m2a') || s.includes('m2a')) return 202605;
+  if (s.includes('inferno x') || id.startsWith('m2') || s.includes('m2:')) return 202604;
+  if (s.includes('mega brave') || id.startsWith('m1l') || s.includes('m1l')) return 202603;
+  if (s.includes('mega symphonia') || id.startsWith('m1s') || s.includes('m1s')) return 202602;
+  if (s.includes('mega evolution') || id.startsWith('me01') || s.includes('me01') || id.startsWith('me-') || id.startsWith('me/')) return 202601;
 
-  // Scarlet & Violet (2023 - 2025)
-  if (s.includes('prismatic evolutions') || id.startsWith('sv8pt5')) return 202501;
-  if (s.includes('surging sparks') || s.includes('super electric breaker') || id.startsWith('sv8')) return 202411;
-  if (s.includes('white flare') || id.includes('csv12') || s.includes('csv12')) return 202410;
-  if (s.includes('black bolt') || id.includes('csv11') || s.includes('csv11')) return 202410;
-  if (s.includes('starry crystal') || id.includes('csv9c') || s.includes('csv9c')) return 202409;
+  // 2. Scarlet & Violet (2023 - 2025)
+  if (s.includes('black bolt') || id.includes('csv11') || s.includes('csv11') || id.includes('sv11b') || s.includes('sv11b')) return 202509;
+  if (s.includes('white flare') || id.includes('csv12') || s.includes('csv12') || id.includes('sv11w') || s.includes('sv11w')) return 202508;
+  if (s.includes('team rocket') || s.includes('glory of team rocket') || id.startsWith('sv10') || s.includes('sv10')) return 202504;
+  if (s.includes('heat wave arena') || id.startsWith('sv9a') || s.includes('sv9a')) return 202503;
+  if (s.includes('battle partners') || id.startsWith('sv9') || s.includes('sv9')) return 202501;
+  if (s.includes('prismatic evolutions') || s.includes('terastal festival') || id.startsWith('sv8pt5') || id.startsWith('sv8a') || s.includes('sv8a')) return 202412;
+  if (s.includes('surging sparks') || s.includes('super electric breaker') || id.startsWith('sv8') || s.includes('sv8')) return 202411;
+  if (s.includes('paradise dragona') || id.startsWith('sv7a') || s.includes('sv7a')) return 202409;
   if (s.includes('stellar crown') || s.includes('stellar miracle') || id.startsWith('sv7') || id.includes('csv9pt5c')) return 202409;
-  if (s.includes('shrouded fable') || s.includes('night wanderer') || id.startsWith('sv6pt5') || id.includes('csv8c')) return 202408;
+  if (s.includes('starry crystal') || id.includes('csv9c') || s.includes('csv9c')) return 202409;
+  if (s.includes('shrouded fable') || s.includes('night wanderer') || id.startsWith('sv6pt5') || id.startsWith('sv6a') || id.includes('csv8c')) return 202408;
   if (s.includes('twilight masquerade') || s.includes('mask of change') || id.startsWith('sv6') || id.includes('csv7c')) return 202405;
-  if (s.includes('crimson haze') || id.startsWith('sv5a')) return 202403;
+  if (s.includes('crimson haze') || id.startsWith('sv5a') || s.includes('sv5a')) return 202403;
   if (s.includes('temporal forces') || s.includes('cyber judge') || s.includes('wild force') || id.startsWith('sv5') || id.includes('csv5c')) return 202403;
-  if (s.includes('paldean fates') || s.includes('shiny treasure') || id.startsWith('sv4pt5')) return 202401;
+  if (s.includes('paldean fates') || s.includes('shiny treasure') || id.startsWith('sv4pt5') || id.startsWith('sv4a')) return 202401;
   if (s.includes('paradox rift') || s.includes('ancient roar') || s.includes('future flash') || id.startsWith('sv4') || id.includes('csv4c')) return 202311;
-  if (s.includes('151') || id.startsWith('sv3pt5') || id.includes('151c')) return 202309;
-  if (s.includes('ruler of the black flame') || s.includes('obsidian flames') || id.startsWith('sv3')) return 202308;
-  if (s.includes('paldea evolved') || s.includes('clay burst') || s.includes('snow hazard') || s.includes('triplet beat') || id.startsWith('sv2')) return 202306;
+  if (s.includes('raging surf') || id.startsWith('sv3a') || s.includes('sv3a')) return 202309;
+  if (s.includes('151') || id.startsWith('sv3pt5') || id.startsWith('sv2a') || id.includes('151c')) return 202309;
+  if (s.includes('obsidian flames') || s.includes('ruler of the black flame') || id.startsWith('sv3')) return 202308;
+  if (s.includes('paldea evolved') || s.includes('clay burst') || s.includes('snow hazard') || id.startsWith('sv2')) return 202306;
+  if (s.includes('triplet beat') || id.startsWith('sv1a') || s.includes('sv1a')) return 202303;
   if (s.includes('scarlet & violet') || s.includes('scarlet ex') || s.includes('violet ex') || id.startsWith('sv1')) return 202303;
 
-  // Sword & Shield (2020 - 2023)
+  // 3. Sword & Shield (2020 - 2023)
   if (s.includes('crown zenith') || s.includes('vstar universe') || id.startsWith('swsh12pt5') || id.startsWith('swsh12pt5gg') || id.startsWith('s12a')) return 202301;
-  if (s.includes('silver tempest') || s.includes('paradigm trigger') || s.includes('incandescent arcana') || id.startsWith('swsh12') || id.startsWith('swsh12tg') || id.startsWith('s12')) return 202211;
-  if (s.includes('lost origin') || s.includes('lost abyss') || s.includes('dark phantasma') || id.startsWith('swsh11') || id.startsWith('swsh11tg') || id.startsWith('s11')) return 202209;
+  if (s.includes('silver tempest') || s.includes('paradigm trigger') || id.startsWith('swsh12') || id.startsWith('swsh12tg') || id.startsWith('s12')) return 202211;
+  if (s.includes('incandescent arcana') || id.startsWith('s11a') || s.includes('s11a')) return 202209;
+  if (s.includes('lost origin') || s.includes('lost abyss') || id.startsWith('swsh11') || id.startsWith('swsh11tg') || id.startsWith('s11')) return 202209;
   if (s.includes('pokemon go') || id.startsWith('pgo') || id.startsWith('swsh10pt5')) return 202207;
-  if (s.includes('astral radiance') || s.includes('space juggler') || s.includes('time gazer') || s.includes('battle region') || id.startsWith('swsh10') || id.startsWith('swsh10tg') || id.startsWith('s10')) return 202205;
-  if (s.includes('brilliant stars') || s.includes('star birth') || s.includes('vmax climax') || id.startsWith('swsh9') || id.startsWith('swsh9tg') || id.startsWith('s9') || id.startsWith('s8b')) return 202202;
-  if (s.includes('fusion strike') || s.includes('fusion arts') || s.includes('25th anniversary') || id.startsWith('swsh8') || id.startsWith('s8')) return 202111;
-  if (s.includes('celebrations') || id.startsWith('cel25')) return 202110;
-  if (s.includes('evolving skies') || s.includes('eevee heroes') || s.includes('blue sky stream') || s.includes('skyscraping') || id.startsWith('swsh7') || id.startsWith('s6a') || id.startsWith('s7')) return 202108;
-  if (s.includes('chilling reign') || s.includes('silver lance') || s.includes('jet-black') || s.includes('peerless fighters') || id.startsWith('swsh6') || id.startsWith('s6') || id.startsWith('s5a')) return 202106;
+  if (s.includes('dark phantasma') || id.startsWith('s10a') || s.includes('s10a')) return 202205;
+  if (s.includes('astral radiance') || s.includes('space juggler') || s.includes('time gazer') || id.startsWith('swsh10') || id.startsWith('swsh10tg') || id.startsWith('s10')) return 202205;
+  if (s.includes('battle region') || id.startsWith('s9a') || s.includes('s9a')) return 202202;
+  if (s.includes('brilliant stars') || s.includes('star birth') || id.startsWith('swsh9') || id.startsWith('swsh9tg') || id.startsWith('s9')) return 202202;
+  if (s.includes('vmax climax') || id.startsWith('s8b') || s.includes('s8b')) return 202112;
+  if (s.includes('fusion strike') || s.includes('fusion arts') || id.startsWith('swsh8') || id.startsWith('s8')) return 202111;
+  if (s.includes('celebrations') || s.includes('25th anniversary') || id.startsWith('cel25') || id.startsWith('s8a')) return 202110;
+  if (s.includes('evolving skies') || s.includes('blue sky stream') || s.includes('skyscraping') || id.startsWith('swsh7') || id.startsWith('s7')) return 202108;
+  if (s.includes('chilling reign') || s.includes('silver lance') || s.includes('jet-black') || id.startsWith('swsh6') || id.startsWith('s6')) return 202106;
+  if (s.includes('eevee heroes') || id.startsWith('s6a') || s.includes('s6a')) return 202105;
+  if (s.includes('peerless fighters') || id.startsWith('s5a') || s.includes('s5a')) return 202103;
   if (s.includes('battle styles') || s.includes('single strike') || s.includes('rapid strike') || id.startsWith('swsh5') || id.startsWith('s5')) return 202103;
   if (s.includes('shining fates') || s.includes('shiny star v') || id.startsWith('swsh45') || id.startsWith('s4a')) return 202102;
   if (s.includes('vivid voltage') || s.includes('astonishing volt') || id.startsWith('swsh4') || id.startsWith('s4')) return 202011;
   if (s.includes('champion\'s path') || s.includes('legendary heartbeat') || id.startsWith('swsh35') || id.startsWith('s3a')) return 202009;
-  if (s.includes('darkness ablaze') || s.includes('infinity zone') || s.includes('explosive walker') || id.startsWith('swsh3') || id.startsWith('s3') || id.startsWith('s2a')) return 202008;
-  if (s.includes('rebel clash') || s.includes('rebellion crash') || s.includes('vmax rising') || id.startsWith('swsh2') || id.startsWith('s2') || id.startsWith('s1a')) return 202005;
+  if (s.includes('darkness ablaze') || s.includes('infinity zone') || id.startsWith('swsh3') || id.startsWith('s3')) return 202008;
+  if (s.includes('explosive walker') || id.startsWith('s2a') || s.includes('s2a')) return 202005;
+  if (s.includes('rebel clash') || s.includes('rebellion crash') || id.startsWith('swsh2') || id.startsWith('s2')) return 202005;
+  if (s.includes('vmax rising') || id.startsWith('s1a') || s.includes('s1a')) return 202002;
   if (s.includes('sword & shield') || s.includes('sword') || s.includes('shield') || id.startsWith('swsh1') || id.startsWith('s1')) return 202002;
 
-  // Sun & Moon (2017 - 2019)
-  if (s.includes('cosmic eclipse') || id.startsWith('sm12') || s.includes('sm12')) return 201911;
+  // 4. Sun & Moon (2017 - 2019)
+  if (s.includes('cosmic eclipse') || s.includes('alter genesis') || id.startsWith('sm12') || s.includes('sm12')) return 201911;
   if (s.includes('tag all stars') || id.startsWith('sm12a') || s.includes('sm12a')) return 201910;
   if (s.includes('dream league') || id.startsWith('sm11b') || s.includes('sm11b')) return 201908;
   if (s.includes('hidden fates') || s.includes('shiny vault') || id.startsWith('sma') || id.startsWith('sm115')) return 201908;
   if (s.includes('unified minds') || s.includes('miracle twin') || s.includes('sky legend') || s.includes('gg end') || id.startsWith('sm11') || id.startsWith('sm10b')) return 201908;
   if (s.includes('unbroken bonds') || s.includes('double blaze') || id.startsWith('sm10')) return 201905;
   if (s.includes('team up') || s.includes('tag bolt') || s.includes('full metal wall') || s.includes('night unison') || id.startsWith('sm9')) return 201902;
-  if (s.includes('lost thunder') || s.includes('ultra shiny') || s.includes('dark order') || s.includes('super-burst') || id.startsWith('sm8')) return 201811;
+  if (s.includes('ultra shiny') || id.startsWith('sm8b') || s.includes('sm8b')) return 201811;
+  if (s.includes('lost thunder') || s.includes('dark order') || s.includes('super-burst') || id.startsWith('sm8')) return 201811;
   if (s.includes('dragon majesty') || s.includes('fairy rise') || id.startsWith('sm75') || id.startsWith('sm7b')) return 201809;
   if (s.includes('celestial storm') || s.includes('thunderclap spark') || s.includes('charisma of the wrecked') || id.startsWith('sm7')) return 201808;
   if (s.includes('forbidden light') || s.includes('champion road') || s.includes('dragon storm') || id.startsWith('sm6')) return 201805;
@@ -322,9 +394,10 @@ export function getSetReleaseWeight(setName?: string, cardId?: string): number {
   if (s.includes('shining legends') || id.startsWith('sm35') || id.startsWith('sm3p')) return 201710;
   if (s.includes('burning shadows') || s.includes('fighting rainbow') || s.includes('darkness that consumes') || id.startsWith('sm3')) return 201708;
   if (s.includes('guardians rising') || s.includes('facing pose') || id.startsWith('sm2')) return 201705;
+  if (s.includes('the best of xy') || id.startsWith('sm2l') || id.startsWith('xy171')) return 201704;
   if (s.includes('sun & moon') || id.startsWith('sm1')) return 201702;
 
-  // XY Series (2014 - 2017)
+  // 5. XY Series (2014 - 2017)
   if (s.includes('best of xy') || id.startsWith('sm2l') || id.startsWith('xy171')) return 201704;
   if (s.includes('evolutions') || id.startsWith('xy12')) return 201611;
   if (s.includes('steam siege') || id.startsWith('xy11')) return 201608;
@@ -341,7 +414,7 @@ export function getSetReleaseWeight(setName?: string, cardId?: string): number {
   if (s.includes('flashfire') || id.startsWith('xy2')) return 201405;
   if (s.includes('xy base') || id.startsWith('xy1') || s === 'xy') return 201402;
 
-  // Black & White (2011 - 2013)
+  // 6. Black & White (2011 - 2013)
   if (s.includes('legendary treasures') || id.startsWith('bw11')) return 201311;
   if (s.includes('plasma blast') || id.startsWith('bw10')) return 201308;
   if (s.includes('plasma freeze') || id.startsWith('bw9')) return 201305;
@@ -354,14 +427,14 @@ export function getSetReleaseWeight(setName?: string, cardId?: string): number {
   if (s.includes('emerging powers') || id.startsWith('bw2')) return 201108;
   if (s.includes('black & white') || id.startsWith('bw1')) return 201104;
 
-  // HGSS (2010 - 2011)
+  // 7. HGSS (2010 - 2011)
   if (s.includes('call of legends') || id.startsWith('col')) return 201102;
   if (s.includes('triumphant') || id.startsWith('hgss4')) return 201011;
   if (s.includes('undaunted') || id.startsWith('hgss3')) return 201008;
   if (s.includes('unleashed') || id.startsWith('hgss2')) return 201005;
   if (s.includes('heartgold') || s.includes('soulsilver') || id.startsWith('hgss1')) return 201002;
 
-  // DP (2007 - 2009)
+  // 8. DP (2007 - 2009)
   if (s.includes('arceus') || id.startsWith('pl4')) return 200911;
   if (s.includes('supreme victors') || id.startsWith('pl3')) return 200908;
   if (s.includes('rising rivals') || id.startsWith('pl2')) return 200905;
@@ -730,9 +803,49 @@ export function SearchResults({
           };
         }
 
+        const eraCards = map[sec.id] || [];
+        const exclusives = eraCards.filter((c) => c.isExclusive);
+        const regulars = eraCards.filter((c) => !c.isExclusive);
+
+        const sortCardsInGroup = (cards: SearchCardResult[]) => {
+          return [...cards].sort((a, b) => {
+            const charA = extractCharacterBaseName(a.name || '');
+            const charB = extractCharacterBaseName(b.name || '');
+            if (charA !== charB) return charA.localeCompare(charB);
+            const numA = parseInt((a.number || a.id.split('-')[1] || '0').replace(/\D/g, ''), 10) || 0;
+            const numB = parseInt((b.number || b.id.split('-')[1] || '0').replace(/\D/g, ''), 10) || 0;
+            if (numA !== numB) return numA - numB;
+            return (a.name || '').localeCompare(b.name || '');
+          });
+        };
+
+        const setMap = new Map<string, SearchCardResult[]>();
+        for (const c of regulars) {
+          const sName = c.setName || c.set_name || 'Expansion';
+          if (!setMap.has(sName)) setMap.set(sName, []);
+          setMap.get(sName)!.push(c);
+        }
+
+        const setGroups = Array.from(setMap.entries()).map(([setName, sCards]) => ({
+          setName,
+          releaseWeight: getSetReleaseWeight(setName, sCards[0]?.id),
+          cards: sortCardsInGroup(sCards)
+        }));
+
+        setGroups.sort((a, b) => {
+          if (a.releaseWeight !== b.releaseWeight) {
+            return b.releaseWeight - a.releaseWeight;
+          }
+          return a.setName.localeCompare(b.setName);
+        });
+
+        const sortedExclusives = sortCardsInGroup(exclusives);
+
         return {
           ...sec,
-          cards: sortCardList(map[sec.id])
+          cards: [...sortedExclusives, ...setGroups.flatMap((sg) => sg.cards)],
+          exclusives: sortedExclusives,
+          setGroups
         };
       });
   }, [results]);
@@ -1277,14 +1390,60 @@ export function SearchResults({
                 ))}
               </div>
             ) : (
-              /* Regular Expansion Era Grid */
-              <div
-                className={`grid ${density === 'compact' ? 'gap-2.5' : 'gap-3.5'}`}
-                style={{
-                  gridTemplateColumns: `repeat(auto-fill, minmax(${cardMinSize}px, 1fr))`
-                }}
-              >
-                {sec.cards.map((card, idx) => renderCardTile(card, idx))}
+              /* Regular Expansion Era: Regional Exclusives Pinned at Top, Followed by Chronological Set Subheaders */
+              <div className="space-y-6">
+                {/* 1. Regional Exclusives Pinned at Top of Era */}
+                {(sec as any).exclusives && (sec as any).exclusives.length > 0 && (
+                  <div className="space-y-3 p-3.5 rounded-2xl bg-linear-to-r from-amber-500/10 via-yellow-500/10 to-orange-500/10 border border-amber-300 dark:border-amber-700/80 shadow-xs">
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-900 dark:text-amber-200 text-xs font-black w-fit">
+                      <span>🏆</span>
+                      <span className="uppercase tracking-wider">Regional Exclusives</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-200/90 dark:bg-amber-900/90 font-mono font-bold">
+                        {(sec as any).exclusives.length} {(sec as any).exclusives.length === 1 ? 'card' : 'cards'}
+                      </span>
+                    </div>
+                    <div
+                      className={`grid ${density === 'compact' ? 'gap-2.5' : 'gap-3.5'}`}
+                      style={{
+                        gridTemplateColumns: `repeat(auto-fill, minmax(${cardMinSize}px, 1fr))`
+                      }}
+                    >
+                      {(sec as any).exclusives.map((card: SearchCardResult, idx: number) => renderCardTile(card, idx))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Chronological Set Subheaders & Grids (Newest to Oldest) */}
+                {(sec as any).setGroups && (sec as any).setGroups.length > 0 ? (
+                  ((sec as any).setGroups as { setName: string; cards: SearchCardResult[] }[]).map((setGroup) => (
+                    <div key={setGroup.setName} className="space-y-3">
+                      <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gray-100/90 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 text-xs font-black text-gray-800 dark:text-gray-200 w-fit shadow-2xs">
+                        <span>📦</span>
+                        <span className="font-extrabold">{setGroup.setName}</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 font-mono font-bold">
+                          {setGroup.cards.length} {setGroup.cards.length === 1 ? 'card' : 'cards'}
+                        </span>
+                      </div>
+                      <div
+                        className={`grid ${density === 'compact' ? 'gap-2.5' : 'gap-3.5'}`}
+                        style={{
+                          gridTemplateColumns: `repeat(auto-fill, minmax(${cardMinSize}px, 1fr))`
+                        }}
+                      >
+                        {setGroup.cards.map((card: SearchCardResult, idx: number) => renderCardTile(card, idx))}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div
+                    className={`grid ${density === 'compact' ? 'gap-2.5' : 'gap-3.5'}`}
+                    style={{
+                      gridTemplateColumns: `repeat(auto-fill, minmax(${cardMinSize}px, 1fr))`
+                    }}
+                  >
+                    {sec.cards.map((card, idx) => renderCardTile(card, idx))}
+                  </div>
+                )}
               </div>
             )}
           </div>
