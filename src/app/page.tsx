@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { CardItem, SearchCardResult, TcgGame, DealItem, SearchFilterState, CardLanguage } from '@/lib/types';
+import { isSameCard } from '@/lib/cardIdentity';
 import { useTheme } from '@/hooks/useTheme';
 import { useCards } from '@/hooks/useCards';
 import { useSniper } from '@/hooks/useSniper';
@@ -239,7 +240,7 @@ export default function Home() {
 
     // Base cache key: cache by game, languages, category, rarities, eras, specialTypes, and search text for 5-day local database
     const langsKey = (filters.languages || []).slice().sort().join('_') || 'all';
-    const baseCacheKey = `${tcg}_${langsKey}_${(filters.categories || []).slice().sort().join('_') || 'all'}_${(filters.rarities || []).slice().sort().join('_') || 'all'}_${(filters.eras || []).slice().sort().join('_') || 'all'}_${(filters.specialTypes || []).slice().sort().join('_') || 'all'}_${query.trim().toLowerCase() || 'all'}`;
+    const baseCacheKey = `v5_${tcg}_${langsKey}_${(filters.categories || []).slice().sort().join('_') || 'all'}_${(filters.rarities || []).slice().sort().join('_') || 'all'}_${(filters.eras || []).slice().sort().join('_') || 'all'}_${(filters.specialTypes || []).slice().sort().join('_') || 'all'}_${query.trim().toLowerCase() || 'all'}`;
 
     if (!forceRefresh) {
       const cached = getCachedCatalog(baseCacheKey);
@@ -369,12 +370,7 @@ export default function Home() {
 
   // Open Own Modal in Add or Edit Mode
   const handleOpenOwnModal = (card: SearchCardResult) => {
-    const tcgId = card.tcgplayerId || card.id;
-    const cardName = card.name.toLowerCase().trim();
-    const existing = myCollection.find((c) => {
-      if (c.card_id && String(c.card_id) === String(tcgId)) return true;
-      return c.name.toLowerCase().trim() === cardName;
-    });
+    const existing = myCollection.find((c) => isSameCard(c, card));
 
     if (existing) {
       setOwnModalMode('edit');
@@ -523,22 +519,8 @@ export default function Home() {
     // Filter by "Missing from Wishlist/Collection" (Cards I don't have)
     if (filters.onlyUnowned) {
       list = list.filter((card) => {
-        const isOwned = myCollection.some((owned) => {
-          if (card.id && owned.card_id && String(owned.card_id) === String(card.id)) {
-            return true;
-          }
-          const cardName = card.name.toLowerCase().trim();
-          const ownedName = owned.name.toLowerCase().trim();
-          return cardName === ownedName;
-        });
-        const isWishlisted = myList.some((w) => {
-          if (card.id && w.card_id && String(w.card_id) === String(card.id)) {
-            return true;
-          }
-          const cardName = card.name.toLowerCase().trim();
-          const wishName = w.name.toLowerCase().trim();
-          return cardName === wishName;
-        });
+        const isOwned = myCollection.some((owned) => isSameCard(owned, card));
+        const isWishlisted = myList.some((w) => isSameCard(w, card));
         return !isOwned && !isWishlisted;
       });
     }
@@ -965,18 +947,8 @@ export default function Home() {
                 onToggleOwned={handleToggleOwned}
                 onOpenOwnModal={handleOpenOwnModal}
                 onFlushCache={handleFlushCache}
-                isOwned={(card) =>
-                  myCollection.some((c) => {
-                    if (card.id && c.card_id && String(c.card_id) === String(card.id)) return true;
-                    return c.name.toLowerCase().trim() === card.name.toLowerCase().trim();
-                  })
-                }
-                isTracked={(card) =>
-                  myList.some((c) => {
-                    if (card.id && c.card_id && String(c.card_id) === String(card.id)) return true;
-                    return c.name.toLowerCase().trim() === card.name.toLowerCase().trim();
-                  })
-                }
+                isOwned={(card) => myCollection.some((c) => isSameCard(c, card))}
+                isTracked={(card) => myList.some((c) => isSameCard(c, card))}
               />
             ) : hasSearched ? (
               <div className="bg-white dark:bg-gray-800/90 rounded-2xl p-8 text-center text-gray-500 border border-gray-100 dark:border-gray-700/80">

@@ -214,9 +214,10 @@ function attachMultiLanguagePrices(
     // Price approximations based on verified Asian Pokemon market dynamics:
     // Japanese: ~55-65% of English, Korean: ~32-38% of English, Chinese: ~45-52% of English
     // Special high-demand comp: Japanese Dream League Rosa SR Near Mint comp is $280.00
-    const isRosa = (card.name || '').toLowerCase().includes('rosa');
+    const cardNameLower = (card.name || '').toLowerCase();
+    const isClassicRosa = (cardNameLower === 'rosa' || cardNameLower.startsWith('rosa (')) && !cardNameLower.includes('encouragement') && !cardNameLower.includes('はげまし');
     const enPrice = basePrice;
-    const jaPrice = isRosa ? 280.00 : parseFloat((basePrice * 0.62).toFixed(2));
+    const jaPrice = isClassicRosa ? 280.00 : parseFloat((basePrice * 0.62).toFixed(2));
     const koPrice = shouldIncludeAsianAlts ? parseFloat((basePrice * 0.36).toFixed(2)) : null;
     const zhPrice = shouldIncludeAsianAlts ? parseFloat((basePrice * 0.48).toFixed(2)) : null;
 
@@ -239,7 +240,7 @@ function attachMultiLanguagePrices(
         label: 'Japanese',
         price: jaPrice,
         currency: 'USD',
-        source: isRosa ? 'Cardmarket / Mercari' : 'Est. JP Market (Arbitrage)',
+        source: isClassicRosa ? 'Cardmarket / Mercari' : 'Est. JP Market (Arbitrage)',
         link: jaTcgLink
       }
     };
@@ -652,13 +653,16 @@ export async function GET(request: Request) {
         const displayName = isTrueExclusive ? `${cleanName} [JP Exclusive]` : cleanName;
         const englishSetName = getEnglishSetName(card.setName || card.set_name || card.id);
 
-        // Check if translated name matches any English card
-        const normalizedDisplayName = normalizeCardName(cleanName);
-        const alreadyExistsInEn = enResults.some(
-          (enCard) => normalizeCardName(enCard.name) === normalizedDisplayName
-        );
-        if (alreadyExistsInEn) {
-          continue;
+        // If this is a true regional exclusive (e.g. The Best of XY, Tag All Stars, Extra Battle Day),
+        // we KEEP it even if an English card with the same character name exists in other sets!
+        if (!isTrueExclusive) {
+          const normalizedDisplayName = normalizeCardName(cleanName);
+          const alreadyExistsInEn = enResults.some(
+            (enCard) => normalizeCardName(enCard.name) === normalizedDisplayName
+          );
+          if (alreadyExistsInEn) {
+            continue;
+          }
         }
 
         // Skip if the card has non-Latin characters in its name or set name
@@ -855,16 +859,17 @@ export async function GET(request: Request) {
       let alreadyExists = false;
 
       for (const [existingKey, existingCard] of combinedMap.entries()) {
-        const existingIdLower = (existingCard.id || '').toLowerCase();
-        const curatedIdLower = curated.id.toLowerCase();
-        const idMatches = existingIdLower === curatedIdLower ||
-          existingIdLower.includes(curatedIdLower) ||
-          curatedIdLower.includes(existingIdLower) ||
-          existingKey.toLowerCase().endsWith(curatedIdLower);
+        const existingIdClean = (existingCard.id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const curatedIdClean = curated.id.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const idMatches = existingIdClean === curatedIdClean ||
+          (existingCard.tcgplayerId && curated.tcgplayerId && String(existingCard.tcgplayerId) === String(curated.tcgplayerId)) ||
+          existingKey.toLowerCase().endsWith(`-${curated.id.toLowerCase()}`);
 
         const nameMatches = normalizeCardName(existingCard.name) === curatedBaseName;
+        const setMatches = (existingCard.setName || existingCard.set_name || '').toLowerCase().trim() ===
+          (curated.setName || curated.set_name || '').toLowerCase().trim();
 
-        if (idMatches || (nameMatches && existingCard.language === curated.language)) {
+        if (idMatches || (nameMatches && existingCard.language === curated.language && setMatches)) {
           alreadyExists = true;
           // Ensure working image and correct price
           if (!existingCard.image || existingCard.image.includes('cardback') || existingCard.image.includes('back.png') || existingCard.image.includes('/sm/')) {

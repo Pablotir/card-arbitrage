@@ -1792,6 +1792,36 @@ export const CURATED_TRUE_EXCLUSIVES: SearchCardResult[] = [
     pricingSource: 'Cardmarket'
   },
   {
+    id: 'me03-123',
+    name: "Rosa's Encouragement (Special Illustration Rare 123/086)",
+    setName: 'Perfect Order (ME03)',
+    image: 'https://assets.tcgdex.net/en/me/me03/123/high.webp',
+    imageUrl: 'https://assets.tcgdex.net/en/me/me03/123/high.webp',
+    price: '40.00',
+    rarity: 'Special Illustration Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'en',
+    game: 'pokemon',
+    isExclusive: false,
+    pricingSource: 'TCGPlayer'
+  },
+  {
+    id: 'me03-114',
+    name: "Rosa's Encouragement (Ultra Rare 114/086)",
+    setName: 'Perfect Order (ME03)',
+    image: 'https://assets.tcgdex.net/en/me/me03/114/high.webp',
+    imageUrl: 'https://assets.tcgdex.net/en/me/me03/114/high.webp',
+    price: '10.00',
+    rarity: 'Ultra Rare',
+    category: 'Trainer',
+    trainerType: 'Supporter',
+    language: 'en',
+    game: 'pokemon',
+    isExclusive: false,
+    pricingSource: 'TCGPlayer'
+  },
+  {
     id: 'me-30th-n',
     name: 'N (30th Celebration Classic Collection Full Art)',
     setName: 'ME: 30th Celebration',

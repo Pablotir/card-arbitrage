@@ -15,6 +15,15 @@ export const KNOWN_CARD_PRICING: Record<string, KnownPriceEntry> = {
   'sm5-151': { tcgplayerId: '160350', price: 480.00, source: 'TCGPlayer' },
   // Rosa (Full Art - Cosmic Eclipse 236/236)
   'sm12-236': { tcgplayerId: '201334', price: 235.00, source: 'TCGPlayer' },
+  // Rosa's Encouragement (Mega Evolution / Scarlet & Violet)
+  'me03-123': { tcgplayerId: '684392', price: 40.00, source: 'TCGPlayer' },
+  'me03-114': { tcgplayerId: '684391', price: 10.00, source: 'TCGPlayer' },
+  'me01-rosa-sir': { tcgplayerId: '684392', price: 40.00, source: 'TCGPlayer' },
+  'me01-rosa-ir': { tcgplayerId: '684391', price: 10.00, source: 'TCGPlayer' },
+  'sv-rosa-sir': { tcgplayerId: '684392', price: 40.00, source: 'TCGPlayer' },
+  'sv-rosa-ir': { tcgplayerId: '684391', price: 10.00, source: 'TCGPlayer' },
+  'rosa-encouragement-sir': { tcgplayerId: '684392', price: 40.00, source: 'TCGPlayer' },
+  'rosa-encouragement-ir': { tcgplayerId: '684391', price: 10.00, source: 'TCGPlayer' },
   // Erika's Hospitality (Full Art - Team Up 174/181)
   'sm9-174': { tcgplayerId: '183921', price: 185.00, source: 'TCGPlayer' },
   // Sightseer (Tag All Stars 192/173)
@@ -176,7 +185,13 @@ export function getKnownCardPrice(
     if (lower.includes('lillie') && (lower.includes('ultra prism') || lower.includes('151/156') || sLower.includes('ultra prism'))) {
       return KNOWN_CARD_PRICING['sm5-151'];
     }
-    if (lower.includes('rosa')) {
+    if (lower.includes('encouragement') || lower.includes('はげまし')) {
+      if (rLower.includes('special') || rLower.includes('sar') || rLower.includes('sir') || lower.includes('sir')) {
+        return KNOWN_CARD_PRICING['me01-rosa-sir'];
+      }
+      return KNOWN_CARD_PRICING['me01-rosa-ir'];
+    }
+    if ((lower === 'rosa' || lower.startsWith('rosa (') || lower.includes('メイ')) && !lower.includes('encouragement') && !lower.includes('はげまし')) {
       if (cardId?.toLowerCase().includes('sm11b') || lower.includes('dream league') || sLower.includes('dream league')) {
         return KNOWN_CARD_PRICING['sm11b-067'];
       }

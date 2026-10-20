@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { CardItem, SearchCardResult, TcgGame, StorageMode, CardLanguage } from '@/lib/types';
+import { isSameCard } from '@/lib/cardIdentity';
 import {
   getLocalCards,
   saveLocalCard,
@@ -226,11 +227,8 @@ export function useCards(userId: string) {
     const tcgId = card.tcgplayerId || card.id;
     const cardName = card.name.toLowerCase().trim();
 
-    // Check if card is currently in collection
-    const existing = myCollection.find((c) => {
-      if (c.card_id && String(c.card_id) === String(tcgId)) return true;
-      return c.name.toLowerCase().trim() === cardName;
-    });
+    // Check if exact card printing is currently in collection
+    const existing = myCollection.find((c) => isSameCard(c, card));
 
     if (existing) {
       // Un-own: delete from collection
@@ -277,8 +275,8 @@ export function useCards(userId: string) {
     if (storageMode === 'local') {
       const created = saveLocalCard(newCard, 'collection');
       setMyCollection((prev) => [created, ...prev]);
-      // Remove from wishlist if it was there
-      setMyList((prev) => prev.filter((w) => String(w.card_id) !== String(tcgId) && w.name.toLowerCase().trim() !== cardName));
+      // Remove this exact card printing from wishlist if it was there
+      setMyList((prev) => prev.filter((w) => !isSameCard(w, card)));
       return { status: 'added' as const, card: created };
     }
 
@@ -332,9 +330,7 @@ export function useCards(userId: string) {
     if (storageMode === 'local') {
       const created = saveLocalCard(newCard, 'collection');
       setMyCollection((prev) => [created, ...prev]);
-      setMyList((prev) =>
-        prev.filter((w) => String(w.card_id) !== String(tcgId) && w.name.toLowerCase().trim() !== cardName)
-      );
+      setMyList((prev) => prev.filter((w) => !isSameCard(w, card)));
       return { status: 'added' as const, card: created };
     }
 
