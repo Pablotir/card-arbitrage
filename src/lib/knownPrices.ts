@@ -26,8 +26,16 @@ export const KNOWN_CARD_PRICING: Record<string, KnownPriceEntry> = {
   'rosa-encouragement-ir': { tcgplayerId: '684391', price: 10.00, source: 'TCGPlayer' },
   // Erika's Hospitality (Full Art - Team Up 174/181)
   'sm9-174': { tcgplayerId: '183921', price: 185.00, source: 'TCGPlayer' },
-  // Sightseer (Tag All Stars 192/173)
-  'sm12a-192': { tcgplayerId: '205391', price: 450.00, source: 'TCGPlayer' },
+  // Tag All Stars Full Art Exclusives (Japanese SM12a)
+  'sm12a-189': { tcgplayerId: '205397', price: 38.00, source: 'Cardmarket / Mercari' },
+  'sm12a-191': { tcgplayerId: '205390', price: 115.00, source: 'Cardmarket / Mercari' },
+  'sm12a-192': { tcgplayerId: '205391', price: 460.00, source: 'TCGPlayer' },
+  'sm12a-193': { tcgplayerId: '205392', price: 95.00, source: 'Cardmarket / Mercari' },
+  'sm12a-194': { tcgplayerId: '205393', price: 42.00, source: 'Cardmarket / Mercari' },
+  'sm12a-195': { tcgplayerId: '205395', price: 45.00, source: 'Cardmarket / Mercari' },
+  'sm12a-196': { tcgplayerId: '205394', price: 210.00, source: 'Cardmarket / Mercari' },
+  'sm12a-199': { tcgplayerId: '205398', price: 28.00, source: 'Cardmarket / Mercari' },
+  'sm12a-201': { tcgplayerId: '205396', price: 85.00, source: 'Cardmarket / Mercari' },
   // Skyla (Full Art - BREAKpoint 122/122)
   'xy9-122': { tcgplayerId: '111641', price: 52.83, source: 'TCGPlayer' },
   // Welder (Full Art - Unbroken Bonds 214/214)
@@ -106,8 +114,13 @@ export const KNOWN_CARD_PRICING: Record<string, KnownPriceEntry> = {
   'sm2l-186': { tcgplayerId: '598983', price: 65.00, source: 'Cardmarket / Mercari' },
   'xy171-186': { tcgplayerId: '598983', price: 65.00, source: 'Cardmarket / Mercari' },
 
-  // Team Skull Grunt (Special Box Japanese Promo 013/SM-P)
-  'sm-p-013': { tcgplayerId: '598475', price: 180.00, source: 'Cardmarket / Mercari' },
+  // Team Skull Grunt (Sun & Moon 149/149)
+  'sm1-149': { tcgplayerId: '127021', price: 7.50, source: 'TCGPlayer' },
+  '149/149': { tcgplayerId: '127021', price: 7.50, source: 'TCGPlayer' },
+
+  // Trevor (XY Black Star Promos XY33)
+  'xyp-XY33': { tcgplayerId: '106398', price: 2.00, source: 'TCGPlayer' },
+  'xy33': { tcgplayerId: '106398', price: 2.00, source: 'TCGPlayer' },
 
   // Tournament Collection Promos
   'swsh121': { tcgplayerId: '246830', price: 42.00, source: 'TCGPlayer' },
@@ -115,11 +128,6 @@ export const KNOWN_CARD_PRICING: Record<string, KnownPriceEntry> = {
   'swsh251': { tcgplayerId: '488344', price: 18.00, source: 'TCGPlayer' },
   'swsh302': { tcgplayerId: '490197', price: 16.50, source: 'TCGPlayer' },
   'svp-124': { tcgplayerId: '544154', price: 22.00, source: 'TCGPlayer' },
-
-  // Tag All Stars Alt Art Full Arts
-  'sm12a-193': { tcgplayerId: '205392', price: 95.00, source: 'Cardmarket / Mercari' },
-  'sm12a-196': { tcgplayerId: '205394', price: 210.00, source: 'Cardmarket / Mercari' },
-  'sm12a-201': { tcgplayerId: '205396', price: 85.00, source: 'Cardmarket / Mercari' },
 
   // Professor Sycamore (Premium Trainer's XY Collection 114a/114 & The Best of XY 179/171)
   'xy9-114a': { tcgplayerId: '148348', price: 14.00, source: 'TCGPlayer' },
@@ -196,6 +204,33 @@ export function getKnownCardPrice(
         return KNOWN_CARD_PRICING['sm11b-067'];
       }
       return KNOWN_CARD_PRICING['sm12-236'];
+    }
+    if (lower.includes("sightseer") || lower.includes("かんこうきゃく")) {
+      return KNOWN_CARD_PRICING['sm12a-192'];
+    }
+    if (lower.includes("misty & lorelei") || lower.includes("カスミ&カンナ")) {
+      return KNOWN_CARD_PRICING['sm12a-191'];
+    }
+    if (lower.includes("bellelba") || lower.includes("ジュジュベ")) {
+      return KNOWN_CARD_PRICING['sm12a-194'];
+    }
+    if (lower.includes("hapu") && (sLower.includes("tag all stars") || cardId?.toLowerCase().includes("sm12a") || lower.includes("195"))) {
+      return KNOWN_CARD_PRICING['sm12a-195'];
+    }
+    if (lower.includes("clay") && (sLower.includes("tag all stars") || cardId?.toLowerCase().includes("sm12a") || lower.includes("199"))) {
+      return KNOWN_CARD_PRICING['sm12a-199'];
+    }
+    if (lower.includes("will") && (sLower.includes("tag all stars") || cardId?.toLowerCase().includes("sm12a") || lower.includes("189"))) {
+      return KNOWN_CARD_PRICING['sm12a-189'];
+    }
+    if (lower.includes("green's exploration") && (sLower.includes("tag all stars") || cardId?.toLowerCase().includes("sm12a") || lower.includes("196"))) {
+      return KNOWN_CARD_PRICING['sm12a-196'];
+    }
+    if (lower.includes("blue's tactics") && (sLower.includes("tag all stars") || cardId?.toLowerCase().includes("sm12a") || lower.includes("193"))) {
+      return KNOWN_CARD_PRICING['sm12a-193'];
+    }
+    if (lower.includes("red's challenge") && (sLower.includes("tag all stars") || cardId?.toLowerCase().includes("sm12a") || lower.includes("201"))) {
+      return KNOWN_CARD_PRICING['sm12a-201'];
     }
     if (lower.includes("erika's hospitality")) {
       return KNOWN_CARD_PRICING['sm9-174'];

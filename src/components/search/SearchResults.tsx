@@ -221,6 +221,46 @@ export function isPromoCard(card: SearchCardResult): boolean {
     return false;
   }
 
+  // 6. Alternate Art Promos belong in the XY Era
+  if (set.includes('alternate art') || id.includes('105a') || id.includes('75a') || id.includes('88a') || id.includes('98b') || id.includes('111a') || id.includes('114a') || id.includes('73a') || id.includes('177a')) {
+    return false;
+  }
+
+  // 7. Standard Era Black Star Promos and regular expansion cards belong in their respective eras!
+  // (e.g. Karen XY177a & Trevor XY33 stay in XY Era; Marnie & Juniper stay in SWSH Era; Iono stays in SV Era)
+  if (
+    set.includes('black star') ||
+    set.includes('promotional cards') ||
+    set.includes('tournament collection') ||
+    set.includes('premium collection') ||
+    set.includes('scarlet & violet promos') ||
+    set.includes('sword & shield promos') ||
+    set.includes('sun & moon promos') ||
+    set.includes('xy promos') ||
+    set.includes('black & white promos')
+  ) {
+    // Only route to 'other' if it is a true brand collaboration (e.g. McDonald's, Van Gogh, Special Delivery)
+    const isBrandCollab =
+      set.includes('mcdonald') ||
+      set.includes('pizza hut') ||
+      set.includes('domino') ||
+      set.includes('special delivery') ||
+      set.includes('van gogh') ||
+      set.includes('yu nagaba') ||
+      name.includes('special delivery') ||
+      name.includes('grey felt hat') ||
+      name.includes('yu nagaba') ||
+      name.includes('burgerchu') ||
+      name.includes('poncho') ||
+      name.includes('pretend boss') ||
+      name.includes('scream') ||
+      name.includes('toys "r" us') ||
+      name.includes('gamestop');
+    if (isBrandCollab) return true;
+
+    return false;
+  }
+
   // Stamped & Retail/Food Collaborations always route to 'other'
   if (
     set.includes('mcdonald') ||
@@ -234,33 +274,17 @@ export function isPromoCard(card: SearchCardResult): boolean {
     name.includes('grey felt hat') ||
     name.includes('yu nagaba') ||
     name.includes('burgerchu') ||
+    name.includes('poncho') ||
+    name.includes('pretend boss') ||
+    name.includes('scream') ||
     name.includes('toys "r" us') ||
     name.includes('gamestop')
   ) {
     return true;
   }
 
-  // Stamped promos
-  if (set.includes('stamped') || name.includes('stamped')) {
-    return true;
-  }
-
-  // Specific Promo series (Black Star Promos)
-  if (
-    set.includes('black star') ||
-    id.startsWith('swshp') ||
-    id.startsWith('svp') ||
-    id.startsWith('xyp') ||
-    id.startsWith('bwp') ||
-    id.startsWith('s-p-') ||
-    id.startsWith('xy-p-') ||
-    id.startsWith('bw-p-') ||
-    id.startsWith('sv-p-')
-  ) {
-    return true;
-  }
-
-  if (rarity.includes('promo') || name.includes('promo')) {
+  // Stamped event promos
+  if ((set.includes('stamped') || name.includes('stamped')) && !set.includes('prerelease')) {
     return true;
   }
 
@@ -326,6 +350,7 @@ export function getSetReleaseWeight(setName?: string, cardId?: string): number {
   if (s.includes('mega evolution') || id.startsWith('me01') || s.includes('me01') || id.startsWith('me-') || id.startsWith('me/')) return 202601;
 
   // 2. Scarlet & Violet (2023 - 2025)
+  if (s.includes('scarlet & violet promo') || s.includes('sv promo') || id.startsWith('svp') || id.startsWith('sv-p')) return 202510;
   if (s.includes('black bolt') || id.includes('csv11') || s.includes('csv11') || id.includes('sv11b') || s.includes('sv11b')) return 202509;
   if (s.includes('white flare') || id.includes('csv12') || s.includes('csv12') || id.includes('sv11w') || s.includes('sv11w')) return 202508;
   if (s.includes('team rocket') || s.includes('glory of team rocket') || id.startsWith('sv10') || s.includes('sv10')) return 202504;
@@ -350,6 +375,7 @@ export function getSetReleaseWeight(setName?: string, cardId?: string): number {
   if (s.includes('scarlet & violet') || s.includes('scarlet ex') || s.includes('violet ex') || id.startsWith('sv1')) return 202303;
 
   // 3. Sword & Shield (2020 - 2023)
+  if (s.includes('swsh black star') || s.includes('swsh promo') || id.startsWith('swshp') || id.startsWith('s-p')) return 202302;
   if (s.includes('crown zenith') || s.includes('vstar universe') || id.startsWith('swsh12pt5') || id.startsWith('swsh12pt5gg') || id.startsWith('s12a')) return 202301;
   if (s.includes('silver tempest') || s.includes('paradigm trigger') || id.startsWith('swsh12') || id.startsWith('swsh12tg') || id.startsWith('s12')) return 202211;
   if (s.includes('incandescent arcana') || id.startsWith('s11a') || s.includes('s11a')) return 202209;
@@ -377,6 +403,7 @@ export function getSetReleaseWeight(setName?: string, cardId?: string): number {
   if (s.includes('sword & shield') || s.includes('sword') || s.includes('shield') || id.startsWith('swsh1') || id.startsWith('s1')) return 202002;
 
   // 4. Sun & Moon (2017 - 2019)
+  if (s.includes('sm black star') || s.includes('sm promo') || id.startsWith('smp') || id.startsWith('sm-p')) return 201912;
   if (s.includes('cosmic eclipse') || s.includes('alter genesis') || id.startsWith('sm12') || s.includes('sm12')) return 201911;
   if (s.includes('tag all stars') || id.startsWith('sm12a') || s.includes('sm12a')) return 201910;
   if (s.includes('dream league') || id.startsWith('sm11b') || s.includes('sm11b')) return 201908;
@@ -398,7 +425,9 @@ export function getSetReleaseWeight(setName?: string, cardId?: string): number {
   if (s.includes('sun & moon') || id.startsWith('sm1')) return 201702;
 
   // 5. XY Series (2014 - 2017)
+  if (s.includes('alternate art')) return 201711;
   if (s.includes('best of xy') || id.startsWith('sm2l') || id.startsWith('xy171')) return 201704;
+  if (s.includes('xy black star') || s.includes('xy promo') || id.startsWith('xyp') || id.startsWith('xy-p')) return 201612;
   if (s.includes('evolutions') || id.startsWith('xy12')) return 201611;
   if (s.includes('steam siege') || id.startsWith('xy11')) return 201608;
   if (s.includes('fates collide') || id.startsWith('xy10')) return 201605;

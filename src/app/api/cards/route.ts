@@ -871,16 +871,23 @@ export async function GET(request: Request) {
 
         if (idMatches || (nameMatches && existingCard.language === curated.language && setMatches)) {
           alreadyExists = true;
-          // Ensure working image and correct price
-          if (!existingCard.image || existingCard.image.includes('cardback') || existingCard.image.includes('back.png') || existingCard.image.includes('/sm/')) {
+          // Ensure authoritative working image and correct verified price
+          if (curated.image) {
             existingCard.image = curated.image;
             existingCard.imageUrl = curated.imageUrl;
           }
-          if ((!existingCard.price || parseFloat(String(existingCard.price)) === 0) && curated.price) {
+          if (curated.price) {
             existingCard.price = curated.price;
             existingCard.pricingSource = curated.pricingSource;
           }
-          existingCard.isExclusive = true;
+          existingCard.isExclusive = curated.isExclusive ?? false;
+          if (curated.setName && (!existingCard.setName || existingCard.setName.toLowerCase().includes('fates collide') || curated.setName === 'Alternate Art Promos' || curated.setName === 'Perfect Order')) {
+            existingCard.setName = curated.setName;
+            existingCard.set_name = curated.setName;
+          }
+          if (curated.name && (curated.name.includes('Alternate Full Art') || curated.name.includes('Full Art'))) {
+            existingCard.name = curated.name;
+          }
           break;
         }
       }
@@ -888,6 +895,88 @@ export async function GET(request: Request) {
       if (!alreadyExists) {
         const key = `${curated.language || 'en'}-${curated.id}`;
         combinedMap.set(key, curated);
+      }
+    }
+
+    // 7. Post-merge normalization for Alternate Art Promos, The Best of XY, and Perfect Order
+    for (const card of combinedMap.values()) {
+      const idLower = (card.id || '').toLowerCase();
+      const nameLower = (card.name || '').toLowerCase();
+
+      // Yellow A Alternate Art Promos belong to Alternate Art Promos and are NOT regional exclusives
+      if (
+        idLower.includes('105a') ||
+        idLower.includes('75a') ||
+        idLower.includes('88a') ||
+        idLower.includes('98b') ||
+        idLower.includes('111a') ||
+        idLower.includes('114a') ||
+        idLower.includes('73a') ||
+        idLower.includes('177a') ||
+        nameLower.includes('alternate full art')
+      ) {
+        card.setName = 'Alternate Art Promos';
+        card.set_name = 'Alternate Art Promos';
+        card.isExclusive = false;
+      }
+
+      // Rosa's Encouragement is a standard Perfect Order expansion card, never an exclusive
+      if (
+        nameLower.includes("rosa's encouragement") ||
+        nameLower.includes('rosas encouragement') ||
+        idLower.includes('me03-123') ||
+        idLower.includes('me03-114')
+      ) {
+        card.isExclusive = false;
+        card.setName = 'Perfect Order';
+        card.set_name = 'Perfect Order';
+      }
+    }
+
+    // 8. Cross-language counterpart linking for English Alternate Art Promos <-> Japanese The Best of XY
+    const XY_COUNTERPART_PAIRS: { baseName: string; enId: string; jaId: string; jaPrice: number; enPrice: number }[] = [
+      { baseName: 'n', enId: '105a', jaId: 'sm2l-180', jaPrice: 160.00, enPrice: 68.50 },
+      { baseName: 'hex maniac', enId: '75a', jaId: 'sm2l-181', jaPrice: 420.00, enPrice: 126.40 },
+      { baseName: 'blacksmith', enId: '88a', jaId: 'sm2l-182', jaPrice: 45.00, enPrice: 45.00 },
+      { baseName: 'karen', enId: '177a', jaId: 'sm2l-177', jaPrice: 240.00, enPrice: 96.00 },
+      { baseName: 'delinquent', enId: '98b', jaId: 'sm2l-184', jaPrice: 95.00, enPrice: 32.00 },
+      { baseName: 'shauna', enId: '111a', jaId: 'sm2l-185', jaPrice: 110.00, enPrice: 34.00 },
+      { baseName: 'team flare grunt', enId: '73a', jaId: 'sm2l-186', jaPrice: 65.00, enPrice: 18.50 },
+      { baseName: 'professor sycamore', enId: '114a', jaId: 'sm2l-179', jaPrice: 45.00, enPrice: 14.00 },
+      { baseName: 'lysandre', enId: 'lysandre', jaId: 'sm2l-178', jaPrice: 40.00, enPrice: 12.00 }
+    ];
+
+    for (const pair of XY_COUNTERPART_PAIRS) {
+      let enCard: SearchCardResult | undefined;
+      let jaCard: SearchCardResult | undefined;
+
+      for (const card of combinedMap.values()) {
+        const idLower = (card.id || '').toLowerCase();
+        const nameLower = (card.name || '').toLowerCase();
+        if (
+          card.language === 'en' &&
+          (idLower.includes(pair.enId) ||
+            (nameLower.includes(pair.baseName) && (card.setName?.toLowerCase().includes('alternate') || idLower.includes('a') || idLower.includes('b'))))
+        ) {
+          enCard = card;
+        }
+        if (
+          card.language === 'ja' &&
+          (idLower.includes(pair.jaId) ||
+            (nameLower.includes(pair.baseName) && (card.setName?.toLowerCase().includes('best of xy') || idLower.includes('sm2l'))))
+        ) {
+          jaCard = card;
+        }
+      }
+
+      const effectiveJaPrice = jaCard?.price ? parseFloat(String(jaCard.price)) : pair.jaPrice;
+      const effectiveEnPrice = enCard?.price ? parseFloat(String(enCard.price)) : pair.enPrice;
+
+      if (enCard) {
+        updateCounterpartPricing(enCard, 'ja', 'Japanese', effectiveJaPrice, 'The Best of XY');
+      }
+      if (jaCard) {
+        updateCounterpartPricing(jaCard, 'en', 'English', effectiveEnPrice, 'Alternate Art Promos');
       }
     }
 

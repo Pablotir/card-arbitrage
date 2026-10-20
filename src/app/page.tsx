@@ -240,7 +240,7 @@ export default function Home() {
 
     // Base cache key: cache by game, languages, category, rarities, eras, specialTypes, and search text for 5-day local database
     const langsKey = (filters.languages || []).slice().sort().join('_') || 'all';
-    const baseCacheKey = `v5_${tcg}_${langsKey}_${(filters.categories || []).slice().sort().join('_') || 'all'}_${(filters.rarities || []).slice().sort().join('_') || 'all'}_${(filters.eras || []).slice().sort().join('_') || 'all'}_${(filters.specialTypes || []).slice().sort().join('_') || 'all'}_${query.trim().toLowerCase() || 'all'}`;
+    const baseCacheKey = `v7_${tcg}_${langsKey}_${(filters.categories || []).slice().sort().join('_') || 'all'}_${(filters.rarities || []).slice().sort().join('_') || 'all'}_${(filters.eras || []).slice().sort().join('_') || 'all'}_${(filters.specialTypes || []).slice().sort().join('_') || 'all'}_${query.trim().toLowerCase() || 'all'}`;
 
     if (!forceRefresh) {
       const cached = getCachedCatalog(baseCacheKey);
